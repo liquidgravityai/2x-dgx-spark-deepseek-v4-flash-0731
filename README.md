@@ -14,6 +14,12 @@ and the optimized DSpark speculative-decoding configuration. Model weights are
 ghcr.io/liquidgravityai/2x-dgx-spark-deepseek-v4-flash-0731:vllm-e63a190-sparkinfer-b0976b7-cu132
 ```
 
+Published manifest digest:
+
+```text
+ghcr.io/liquidgravityai/2x-dgx-spark-deepseek-v4-flash-0731@sha256:4a20904cffc5f2d80f753d65d78a143661ff494335dabba6c4658bb3662bf6ad
+```
+
 The immutable tag is recommended for reproducible deployments. `latest` points
 to the same image at publication time.
 

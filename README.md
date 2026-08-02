@@ -102,6 +102,27 @@ Fill the required values in `.env`. The files differ only where noted:
 | `MODEL_HOST_PATH` | local model directory | local model directory |
 | `CACHE_HOST_PATH` | local writable cache | local writable cache |
 
+### Known-working `.env` example
+
+The following values are from a real two-Spark deployment. They are a format
+and topology reference, **not addresses to copy onto another network**.
+
+| Variable | Rank 0 / API node | Rank 1 / worker node | Value kind |
+|---|---|---|---|
+| `NODE_RANK` | `0` | `1` | distributed rank |
+| `MASTER_ADDR` | `169.254.97.143` | `169.254.97.143` | rank-0 RoCE IPv4 address |
+| `VLLM_HOST_IP` | `169.254.97.143` | `169.254.243.47` | this node's RoCE IPv4 address |
+| `FABRIC_IFACE` | `enp1s0f0np0` | `enp1s0f0np0` | Linux network-interface name |
+| `IB_HCA` | `rocep1s0f0` | `rocep1s0f0` | RDMA/HCA device name |
+| `IB_GID_INDEX` | `3` | `3` | decimal index from `show_gids` |
+| `MODEL_HOST_PATH` | `/home/jasonc/models/DeepSeek-V4-Flash-0731` | same path in this example | absolute host path |
+| `CACHE_HOST_PATH` | `/home/jasonc/.cache/deepseek-v4-flash-0731` | same path in this example | absolute writable host path |
+
+`.env.example` repeats this known-working pair as comments immediately above
+the blank required fields. Use it to sanity-check that an address is supplied
+where an address is expected, an interface where an interface is expected,
+and an integer where a GID index is expected.
+
 Create the cache directory on both systems:
 
 ```bash
@@ -119,32 +140,56 @@ docker compose --env-file .env config --quiet
 
 ## 4. Pull and start
 
-Pull on both nodes:
+The following commands are deliberately split across the two nodes. Each
+command runs on the node named in its comment.
+
+First pull and start **rank 1 on the worker node**:
 
 ```bash
+# On rank 1 / worker
 docker compose --env-file .env pull
-```
-
-Start rank 1 first:
-
-```bash
-# On rank 1
 docker compose --env-file .env up -d
 ```
 
-Then start rank 0:
+Then pull and start **rank 0 on the API node**:
 
 ```bash
-# On rank 0
+# On rank 0 / API node
+docker compose --env-file .env pull
 docker compose --env-file .env up -d
 ```
 
-Model loading, compilation, and first-use kernel/JIT caching take time. Follow
-rank 0 until the API starts:
+Model loading, compilation, CUDA-graph capture, and first-use kernel/JIT
+caching can take several minutes. The following command is run on **rank 0
+only** when following API startup:
 
 ```bash
+# On rank 0 / API node
 docker compose --env-file .env logs -f
 ```
+
+`logs -f` is a live follower: it intentionally does not exit when startup
+pauses or completes. Press Ctrl-C to stop following; this does not stop the
+container.
+
+A last visible line similar to:
+
+```text
+world_size=2 rank=0 local_rank=0 distributed_init_method=tcp://RANK_0_ADDRESS:29501
+```
+
+usually means rank 0 is waiting for rank 1 to join the distributed process
+group. If it remains there for several minutes, inspect rank 1 in a separate
+worker-node terminal:
+
+```bash
+# On rank 1 / worker
+docker compose --env-file .env logs --tail=100
+```
+
+Confirm that the worker container is running and both `.env` files agree on
+`MASTER_ADDR`, `MASTER_PORT`, `FABRIC_IFACE`, `IB_HCA`, and `IB_GID_INDEX`.
+Only `NODE_RANK` and the node-local values documented above should differ.
 
 The OpenAI-compatible API is exposed by rank 0 through host networking at
 `API_PORT` (default `8000`).
@@ -260,8 +305,10 @@ a trusted network.
 
 - **Compose reports a required variable is missing:** fill every required entry
   in `.env`; empty values are treated as missing.
-- **Rank 0 waits forever for rank 1:** check `MASTER_ADDR`, `MASTER_PORT`, host
-  routing, and start order.
+- **Rank 0 remains at `world_size=2 ... distributed_init_method=...`:** this
+  normally means it is waiting for rank 1. Confirm rank 1 was started first,
+  inspect its logs, and check that both nodes use the same `MASTER_ADDR`,
+  `MASTER_PORT`, `FABRIC_IFACE`, `IB_HCA`, and `IB_GID_INDEX`.
 - **NCCL timeout or connection error:** verify `FABRIC_IFACE`, `IB_HCA`,
   `IB_GID_INDEX`, the address assigned to the interface, and any firewall.
 - **Container cannot open `/dev/infiniband`:** install/enable the host RDMA

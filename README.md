@@ -104,8 +104,9 @@ Fill the required values in `.env`. The files differ only where noted:
 
 ### Known-working `.env` example
 
-The following values are from a real two-Spark deployment. They are a format
-and topology reference, **not addresses to copy onto another network**.
+The topology values are from a real two-Spark deployment; filesystem paths
+are sanitized examples. They are a format and topology reference,
+**not values to copy blindly into another deployment**.
 
 | Variable | Rank 0 / API node | Rank 1 / worker node | Value kind |
 |---|---|---|---|
@@ -115,8 +116,8 @@ and topology reference, **not addresses to copy onto another network**.
 | `FABRIC_IFACE` | `enp1s0f0np0` | `enp1s0f0np0` | Linux network-interface name |
 | `IB_HCA` | `rocep1s0f0` | `rocep1s0f0` | RDMA/HCA device name |
 | `IB_GID_INDEX` | `3` | `3` | decimal index from `show_gids` |
-| `MODEL_HOST_PATH` | `/home/jasonc/models/DeepSeek-V4-Flash-0731` | same path in this example | absolute host path |
-| `CACHE_HOST_PATH` | `/home/jasonc/.cache/deepseek-v4-flash-0731` | same path in this example | absolute writable host path |
+| `MODEL_HOST_PATH` | `/data/models/DeepSeek-V4-Flash-0731` | same path in this example | absolute host path |
+| `CACHE_HOST_PATH` | `/data/cache/deepseek-v4-flash-0731` | same path in this example | absolute writable host path |
 
 `.env.example` repeats this known-working pair as comments immediately above
 the blank required fields. Use it to sanity-check that an address is supplied

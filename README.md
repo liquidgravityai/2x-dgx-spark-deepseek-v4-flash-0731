@@ -11,13 +11,13 @@ and the optimized DSpark speculative-decoding configuration. Model weights are
 ## Published image
 
 ```text
-ghcr.io/liquidgravityai/2x-dgx-spark-deepseek-v4-flash-0731:vllm-e63a190-sparkinfer-b0976b7-cu132
+ghcr.io/liquidgravityai/2x-dgx-spark-deepseek-v4-flash-0731:r24-vllm-7e92048-sparkinfer-2b9bf2a-cu132
 ```
 
 Published manifest digest:
 
 ```text
-ghcr.io/liquidgravityai/2x-dgx-spark-deepseek-v4-flash-0731@sha256:4a20904cffc5f2d80f753d65d78a143661ff494335dabba6c4658bb3662bf6ad
+ghcr.io/liquidgravityai/2x-dgx-spark-deepseek-v4-flash-0731@sha256:991d478bf4b96f64f536066d4c2645e23b4a5a3a93c4e65210bc3ce9ecd30ff4
 ```
 
 The immutable tag is recommended for reproducible deployments. `latest` points
@@ -27,10 +27,48 @@ to the same image at publication time.
 |---|---|
 | Architecture | Linux ARM64 / NVIDIA GB10 (SM 12.1) |
 | CUDA | 13.2 |
-| vLLM | `e63a190ee1b48d051ccebce485de343dbe2b3505` |
-| SparkInfer | `b0976b7fd46b5d34357a5f615822b86792676feb` |
+| Gilded Gnosis release | `gilded-gnosis-v20-r24` at `6d55257e8b83a6af3d6fa0340f1b2185ee83d04d` |
+| vLLM base | `30038602b71395f481ef4a6edfe4fcf8551d9c15` |
+| vLLM r24 composition | `f5981f14b4d39979bc0d799c020d42002b707257` |
+| vLLM structured-output overlay | `7e9204834e494728c9927f0f615d982271e4ffca` |
+| SparkInfer base | `59216fa25f3d5fc9d4df2d052e02d05f763906e9` |
+| SparkInfer r24 composition | `2b9bf2a4d15770c0c23e19cc13a75843f2f0a995` |
+| ExLlamaV3 ARM64/SM121 tree | `9f3a773b494537580619b528f67c6261198ab237` |
 | Model revision | `9e165c30e2704aec5d9d593cce3eebd58bbef1cb` |
 | Topology | 2 nodes, tensor parallel size 2, DCP size 1 |
+
+## r24 scope and validation
+
+This release replaces the original `e63a190`/`b0976b7` runtime. It includes
+the r24 compressed-MLA workspace reservation and physical cache-page stride
+fixes, native dense Trellis K6 support, the ARM64/SM121 ExLlamaV3 extension,
+and a DSpark structured-output overlay. The overlay preserves scheduled
+grammar-mask identity through adaptive verification compaction and does not
+misclassify asynchronous draft placeholders as grammar rejections.
+
+The release layer was started through this repository's Compose recipe on two
+DGX Sparks. Both ranks used the published runtime configuration: TP2, fixed
+K6, greedy drafting, the automatic SPS curve, FP8 KV cache, and a four-sequence
+limit. The API reached HTTP 200 with zero container restarts.
+
+Tool-call qualification covered automatic and default selection, no-call,
+`tool_choice` values `none` and `required`, forced named functions, a strict
+typed schema, parallel calls enabled and disabled, single and parallel
+tool-result round trips, a second tool turn, streaming, and invalid-function
+validation. Sixteen of seventeen functional cases passed. A separate
+64-request run at concurrency 8 completed 64/64 valid tool calls without an
+engine failure.
+
+Known tool-call compatibility limits:
+
+- Forced named and streamed forced calls return complete `tool_calls`, but
+  report `finish_reason: "stop"` rather than `"tool_calls"`. Clients should
+  inspect `message.tool_calls` instead of relying only on `finish_reason`.
+- With `tool_choice: "none"` and a directly relevant tool, the model can
+  return blank content unless the prompt also says not to call a tool. Omit
+  tools when they are disabled, or include an explicit no-tool instruction.
+
+See [CHANGELOG.md](CHANGELOG.md) for the complete release record.
 
 ## Requirements
 
@@ -271,11 +309,14 @@ Keep these invariants for this published recipe:
 `VLLM_DSPARK_CAPACITY_ACTIVATION_BATCH_SIZE=0` means capacity-aware pruning is
 active at every batch size; zero does not disable it.
 
-## Measured profile
+## Previously measured r16 profile
 
-The retained profile was compared against fixed-K6 probabilistic drafting over
-prompt length 2,048, generated length 128, context depth 0/8K, and concurrency
-1/2/4. Ten measured batches were run in every cell (140 requests per profile).
+The following measurements are retained from the previous
+`e63a190`/`b0976b7` release. They explain the greedy-K6 defaults carried into
+r24, but they are not an r24 throughput claim. That profile was compared
+against fixed-K6 probabilistic drafting over prompt length 2,048, generated
+length 128, context depth 0/8K, and concurrency 1/2/4. Ten measured batches
+were run in every cell (140 requests per profile).
 
 | Metric, six-cell mean | Reference | Published profile | Change |
 |---|---:|---:|---:|
@@ -329,7 +370,7 @@ It expects the pinned compiled runtime image to exist locally:
 
 ```bash
 docker build \
-  --build-arg BASE_IMAGE=spark-vllm:ds4-0731-e63a190-sparkinfer-b0976b7-cu132 \
+  --build-arg BASE_IMAGE=spark-vllm:ds4-0731-gnosis-r24-toolcalls-7e92048-sparkinfer-2b9bf2a-cu132 \
   --build-arg IMAGE_CREATED="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --build-arg IMAGE_REVISION="$(git rev-parse HEAD)" \
   -t ghcr.io/liquidgravityai/2x-dgx-spark-deepseek-v4-flash-0731:local .

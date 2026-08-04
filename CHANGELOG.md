@@ -3,6 +3,103 @@
 All notable changes to the published two-node DGX Spark recipe and image are
 recorded here.
 
+## 2026-08-04 - Gilded Gnosis r27 and 1M-token aggregate KV profile
+
+### Published image
+
+- Published immutable ARM64 tag
+  `ghcr.io/liquidgravityai/2x-dgx-spark-deepseek-v4-flash-0731:r27-vllm-966d57c-sparkinfer-bbbdccc-cu132`.
+- Published manifest digest
+  `sha256:cef61238cfa7cf528bd17d2ecb09a3a3c62975dc80ac184435bef8ea457e4437`.
+- Moved `latest` to the same manifest digest.
+- Updated the Compose default and release-layer Dockerfile to r27.
+
+### Runtime composition
+
+- Replaced the r24 vLLM tree
+  `f5981f14b4d39979bc0d799c020d42002b707257` with Gilded Gnosis r27
+  tree `966d57c8c1d9f643eaac8aa231c6e1027936ef2a` on unchanged base
+  `30038602b71395f481ef4a6edfe4fcf8551d9c15`.
+- Reapplied the qualified structured-output overlay as exact result tree
+  `daf73ac387b2d410f8c8985fc707073c884b5ab7`.
+- Replaced the r24 SparkInfer tree
+  `2b9bf2a4d15770c0c23e19cc13a75843f2f0a995` with r27 base
+  `272a84bd97ce791a1e92d1f3a0da3dd5f3c6565f` and tree
+  `bbbdccc338a2691d780ed160db54ef121c3a61c9`.
+- Pinned InstantTensor
+  `49b4010afc1cae0441e71fe0b0bffc24fa05e932`, LMCache tree
+  `9a05c8818bae48d15b79c7e876418bb813c08cd0`, and the retained
+  ARM64/SM121 ExLlamaV3 tree
+  `9f3a773b494537580619b528f67c6261198ab237`.
+- The reproducible upstream release is
+  [`blackwell-llm-docker@74563bb`](https://github.com/local-inference-lab/blackwell-llm-docker/commit/74563bbfd789a297ca577da5dca049ab0b4b33e1).
+
+### Gilded Gnosis r27 changes included
+
+- [vLLM #235](https://github.com/local-inference-lab/vllm/pull/235)
+  adds the official DeepSeek-V4-Flash-0731 low/high/max reasoning-effort
+  prompts and preserves system/developer tool placement in both Python and
+  Rust renderers.
+- The current [vLLM #217](https://github.com/local-inference-lab/vllm/pull/217)
+  head keeps native-tiering workers and the delayed scheduler on one named L1
+  backing, removes redundant scheduler prefault, and cleans failed rendezvous
+  state.
+- [InstantTensor #19](https://github.com/scitix/InstantTensor/pull/19)
+  attempts whole host registration, then bounded segmented registration, then
+  a runtime-pinned allocation fallback.
+- The inherited SparkInfer r25/r26 changes add dynamic mixed-Trellis expert
+  counts and correct TP4/DCP4 automatic prefill policy. Neither path is active
+  in this TP2 DeepSeek profile.
+- The upstream fixed-K5 default was not copied. This release preserves the
+  previously qualified fixed-K6, greedy-draft, automatic-SPS profile.
+- Native KV offload, LMCache, and dynamic mixed-Trellis execution remain
+  disabled in the published Compose recipe.
+
+### Aggregate KV capacity
+
+- Added `KV_CACHE_MEMORY_BYTES=19000000000` as an explicit per-rank default.
+- The final public image reserved 17.7 GiB per rank and reported 1,034,442
+  aggregate GPU KV tokens, or 3.95 times the 262,144-token per-request limit.
+- A preceding 20,000,000,000-byte sizing run exposed 1,088,923 tokens and
+  completed four concurrent measured 239,988-token exact-retrieval prompts.
+  The published profile uses the more conservative 19,000,000,000-byte value.
+- “1M-token KV” describes aggregate concurrent cache capacity. The qualified
+  per-request maximum remains 262,144 tokens.
+
+### Validation
+
+- Reproduced the r27 source composition locally on Linux ARM64 and verified
+  every vLLM, SparkInfer, InstantTensor, ExLlamaV3, and overlay result tree.
+- Passed the upstream release-composition gate and 35 focused DeepSeek
+  renderer/capacity tests; one unrelated optional dependency test was skipped.
+- Started the exact public release layer on two DGX Sparks with TP2/DCP1,
+  fixed K6, greedy drafting, automatic SPS, FP8 KV, and four sequences.
+- Verified official low/high/max prompt prefixes, developer-before-tools
+  placement, one deduplicated tool block, and a required tool call from a
+  developer-plus-user request.
+- Passed an exact-retrieval request with a measured 249,991-token prompt in
+  145.264 seconds.
+- Passed 16 of 17 tool-call behavior cases and 64 of 64 repeated tool calls at
+  concurrency 8. The one failure is the retained `tool_choice: "none"` model
+  behavior documented below.
+- Both containers remained running with zero restarts and zero OOM kills. The
+  captured head and worker logs contained no assertion, traceback, EngineCore
+  fatal error, CUDA/CUBLAS/NCCL error, OOM, or killed process.
+
+### Known limits
+
+- Forced named and streamed forced calls return valid `tool_calls` with
+  `finish_reason: "stop"` instead of `"tool_calls"`. Clients should inspect
+  `message.tool_calls`.
+- `tool_choice: "none"` can produce blank content when a directly relevant
+  tool remains in the request and the prompt does not explicitly forbid a
+  tool call. Omit tools when disabled or include an explicit no-tool
+  instruction.
+- Native KV offload, LMCache, and the inherited mixed-Trellis/TP4-DCP4 paths
+  are present but unqualified by this deployment.
+- The performance table in the README is retained from r16 and is not an r27
+  throughput claim.
+
 ## 2026-08-03 - Gilded Gnosis r24
 
 ### Published image

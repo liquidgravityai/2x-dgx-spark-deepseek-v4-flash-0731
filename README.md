@@ -11,13 +11,13 @@ and the optimized DSpark speculative-decoding configuration. Model weights are
 ## Published image
 
 ```text
-ghcr.io/liquidgravityai/2x-dgx-spark-deepseek-v4-flash-0731:r24-vllm-7e92048-sparkinfer-2b9bf2a-cu132
+ghcr.io/liquidgravityai/2x-dgx-spark-deepseek-v4-flash-0731:r27-vllm-966d57c-sparkinfer-bbbdccc-cu132
 ```
 
 Published manifest digest:
 
 ```text
-ghcr.io/liquidgravityai/2x-dgx-spark-deepseek-v4-flash-0731@sha256:991d478bf4b96f64f536066d4c2645e23b4a5a3a93c4e65210bc3ce9ecd30ff4
+ghcr.io/liquidgravityai/2x-dgx-spark-deepseek-v4-flash-0731@sha256:cef61238cfa7cf528bd17d2ecb09a3a3c62975dc80ac184435bef8ea457e4437
 ```
 
 The immutable tag is recommended for reproducible deployments. `latest` points
@@ -27,29 +27,42 @@ to the same image at publication time.
 |---|---|
 | Architecture | Linux ARM64 / NVIDIA GB10 (SM 12.1) |
 | CUDA | 13.2 |
-| Gilded Gnosis release | `gilded-gnosis-v20-r24` at `6d55257e8b83a6af3d6fa0340f1b2185ee83d04d` |
+| Gilded Gnosis release | `gilded-gnosis-v20-r27` at `74563bbfd789a297ca577da5dca049ab0b4b33e1` |
 | vLLM base | `30038602b71395f481ef4a6edfe4fcf8551d9c15` |
-| vLLM r24 composition | `f5981f14b4d39979bc0d799c020d42002b707257` |
-| vLLM structured-output overlay | `7e9204834e494728c9927f0f615d982271e4ffca` |
-| SparkInfer base | `59216fa25f3d5fc9d4df2d052e02d05f763906e9` |
-| SparkInfer r24 composition | `2b9bf2a4d15770c0c23e19cc13a75843f2f0a995` |
+| vLLM r27 composition | `966d57c8c1d9f643eaac8aa231c6e1027936ef2a` |
+| vLLM structured-output overlay | `daf73ac387b2d410f8c8985fc707073c884b5ab7` |
+| SparkInfer base | `272a84bd97ce791a1e92d1f3a0da3dd5f3c6565f` |
+| SparkInfer r27 composition | `bbbdccc338a2691d780ed160db54ef121c3a61c9` |
+| LMCache tree | `9a05c8818bae48d15b79c7e876418bb813c08cd0` |
+| InstantTensor | `49b4010afc1cae0441e71fe0b0bffc24fa05e932` |
 | ExLlamaV3 ARM64/SM121 tree | `9f3a773b494537580619b528f67c6261198ab237` |
 | Model revision | `9e165c30e2704aec5d9d593cce3eebd58bbef1cb` |
 | Topology | 2 nodes, tensor parallel size 2, DCP size 1 |
 
-## r24 scope and validation
+## r27 scope and validation
 
-This release replaces the original `e63a190`/`b0976b7` runtime. It includes
-the r24 compressed-MLA workspace reservation and physical cache-page stride
-fixes, native dense Trellis K6 support, the ARM64/SM121 ExLlamaV3 extension,
-and a DSpark structured-output overlay. The overlay preserves scheduled
-grammar-mask identity through adaptive verification compaction and does not
-misclassify asynchronous draft placeholders as grammar rejections.
+This release replaces r24 with the exact Gilded Gnosis r27 vLLM and
+SparkInfer compositions. It adds the official DeepSeek-V4-Flash-0731
+low/high/max reasoning-effort and tool-placement contract, the latest native
+tiering lifecycle fixes, and InstantTensor's bounded registration and
+runtime-pinned fallback. The qualified structured-output overlay is applied
+after the r27 composition.
 
-The release layer was started through this repository's Compose recipe on two
-DGX Sparks. Both ranks used the published runtime configuration: TP2, fixed
-K6, greedy drafting, the automatic SPS curve, FP8 KV cache, and a four-sequence
-limit. The API reached HTTP 200 with zero container restarts.
+The published profile intentionally retains this deployment's TP2, fixed-K6,
+greedy-draft configuration. Native KV offload, LMCache, dynamic mixed-Trellis
+execution, and the upstream TP4/DCP4 prefill policy are not enabled by this
+Compose recipe.
+
+The final profile reserves `19000000000` KV-cache bytes per rank. vLLM
+reported 1,034,442 aggregate GPU KV tokens: 3.95 times the configured
+262,144-token per-request maximum. This is aggregate concurrent capacity, not
+a one-million-token per-request context window.
+
+The exact public release layer was started through this repository's Compose
+recipe on two DGX Sparks. It reached HTTP 200 with zero container restarts,
+passed an exact-retrieval request with a measured 249,991-token prompt, and
+rendered the official low/high/max reasoning prefixes with developer
+instructions before one deduplicated tool block and the user turn.
 
 Tool-call qualification covered automatic and default selection, no-call,
 `tool_choice` values `none` and `required`, forced named functions, a strict
@@ -283,7 +296,8 @@ re-run representative quality, concurrency, long-context, and stability tests.
 
 | Variable | Validated default | Effect / constraint |
 |---|---:|---|
-| `GPU_MEMORY_UTILIZATION` | `0.82` | Higher values increase KV capacity but reduce headroom for graphs and JIT kernels. |
+| `GPU_MEMORY_UTILIZATION` | `0.82` | Retained runtime setting. Explicit `KV_CACHE_MEMORY_BYTES` controls KV allocation in this profile. |
+| `KV_CACHE_MEMORY_BYTES` | `19000000000` | Explicit bytes per rank. The validated TP2 profile exposes 1,034,442 aggregate GPU KV tokens. |
 | `MAX_MODEL_LEN` | `262144` | Maximum request length. Reducing it does not by itself reserve more KV memory. |
 | `MAX_NUM_BATCHED_TOKENS` | `4096` | Scheduler token budget. Larger values may improve prefill throughput but increase pressure and variability. |
 | `MAX_NUM_SEQS` | `4` | Maximum concurrent sequences. Keep graph capture and memory headroom in mind. |
@@ -313,7 +327,7 @@ active at every batch size; zero does not disable it.
 
 The following measurements are retained from the previous
 `e63a190`/`b0976b7` release. They explain the greedy-K6 defaults carried into
-r24, but they are not an r24 throughput claim. That profile was compared
+r27, but they are not an r27 throughput claim. That profile was compared
 against fixed-K6 probabilistic drafting over prompt length 2,048, generated
 length 128, context depth 0/8K, and concurrency 1/2/4. Ten measured batches
 were run in every cell (140 requests per profile).
@@ -370,7 +384,7 @@ It expects the pinned compiled runtime image to exist locally:
 
 ```bash
 docker build \
-  --build-arg BASE_IMAGE=spark-vllm:ds4-0731-gnosis-r24-toolcalls-7e92048-sparkinfer-2b9bf2a-cu132 \
+  --build-arg BASE_IMAGE=spark-vllm:ds4-0731-gnosis-r27-vllm966d57c-toolcalls-daf73ac-sparkinfer-bbbdccc-cu132 \
   --build-arg IMAGE_CREATED="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --build-arg IMAGE_REVISION="$(git rev-parse HEAD)" \
   -t ghcr.io/liquidgravityai/2x-dgx-spark-deepseek-v4-flash-0731:local .

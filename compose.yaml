@@ -1,6 +1,6 @@
 services:
   deepseek-v4-flash-0731:
-    image: ${IMAGE:-ghcr.io/liquidgravityai/2x-dgx-spark-deepseek-v4-flash-0731:r24-vllm-7e92048-sparkinfer-2b9bf2a-cu132}
+    image: ${IMAGE:-ghcr.io/liquidgravityai/2x-dgx-spark-deepseek-v4-flash-0731:r27-vllm-966d57c-sparkinfer-bbbdccc-cu132}
     container_name: deepseek-v4-flash-0731-${NODE_RANK:?set NODE_RANK to 0 or 1}
     gpus: all
     network_mode: host
@@ -40,6 +40,8 @@ services:
       B12X_FUSED_INDEXER: "1"
 
       GPU_MEMORY_UTILIZATION: ${GPU_MEMORY_UTILIZATION:-0.82}
+      # Explicitly sized per rank; yields 1,034,442 aggregate GPU KV tokens.
+      KV_CACHE_MEMORY_BYTES: ${KV_CACHE_MEMORY_BYTES:-19000000000}
       MAX_MODEL_LEN: ${MAX_MODEL_LEN:-262144}
       MAX_NUM_SEQS: ${MAX_NUM_SEQS:-4}
       MAX_NUM_BATCHED_TOKENS: ${MAX_NUM_BATCHED_TOKENS:-4096}

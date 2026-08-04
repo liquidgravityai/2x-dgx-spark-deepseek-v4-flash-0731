@@ -63,9 +63,10 @@ The exact public release layer was started through this repository's Compose
 recipe on two DGX Sparks. It reached HTTP 200 with zero container restarts and
 completed four concurrent exact-retrieval requests with measured
 269,989-token prompts; all four returned the expected protected values in
-735.503 seconds. It also rendered the official low/high/max reasoning prefixes
-with developer instructions before one deduplicated tool block and the user
-turn.
+735.503 seconds. The Compose recipe now defaults omitted reasoning effort to
+`max`; callers can still request `low`, `high`, or `max`. Validation rendered
+all three official prefixes with developer instructions before one
+deduplicated tool block and the user turn.
 
 Tool-call qualification covered automatic and default selection, no-call,
 `tool_choice` values `none` and `required`, forced named functions, a strict
@@ -304,6 +305,7 @@ re-run representative quality, concurrency, long-context, and stability tests.
 | `MAX_MODEL_LEN` | `270000` | Qualified maximum request length. This remains below the model's 1,048,576-position architecture limit. |
 | `MAX_NUM_BATCHED_TOKENS` | `4096` | Scheduler token budget; unchanged for the 270K qualification. |
 | `MAX_NUM_SEQS` | `4` | Four concurrent 269,989-token prompts passed without reducing this limit. |
+| `DEEPSEEK_REASONING_EFFORT` | `max` | Default DeepSeek V4 renderer effort when the request omits `reasoning_effort`; callers may override it with `low`, `high`, or `max`. |
 | `NUM_SPECULATIVE_TOKENS` | `6` | Fixed DSpark proposal depth. This model requires at least its five-token DSpark block size. |
 | `DSPARK_DRAFT_SAMPLE_METHOD` | `greedy` | `greedy` is the published decode winner; `probabilistic` is the reference behavior. |
 | `DSPARK_SPS_CURVE` | `auto` | Enables confidence/cost-based pruning of draft positions. |

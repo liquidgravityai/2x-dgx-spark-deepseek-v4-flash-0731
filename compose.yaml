@@ -2,6 +2,8 @@ services:
   deepseek-v4-flash-0731:
     image: ${IMAGE:-ghcr.io/liquidgravityai/2x-dgx-spark-deepseek-v4-flash-0731:r27-vllm-966d57c-sparkinfer-bbbdccc-cu132}
     container_name: deepseek-v4-flash-0731-${NODE_RANK:?set NODE_RANK to 0 or 1}
+    command:
+      - "--default-chat-template-kwargs.reasoning_effort=${DEEPSEEK_REASONING_EFFORT:-max}"
     gpus: all
     network_mode: host
     ipc: host

@@ -68,6 +68,15 @@ recorded here.
 - “1M-token KV” describes aggregate concurrent cache capacity. The qualified
   per-request maximum is now 270,000 tokens.
 
+### Reasoning default
+
+- Changed the Compose default from `high` to DeepSeek V4 `max` reasoning
+  effort. Requests may continue to override the default with `low`, `high`, or
+  `max`.
+- Verified the live vLLM configuration resolved the default to `max`, the
+  default `/tokenize` prompt began with `Reasoning Effort: Beyond maximum`,
+  and explicit renderer overrides still produced the low/high/max prefixes.
+
 ### Validation
 
 - Reproduced the r27 source composition locally on Linux ARM64 and verified

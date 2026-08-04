@@ -53,16 +53,19 @@ greedy-draft configuration. Native KV offload, LMCache, dynamic mixed-Trellis
 execution, and the upstream TP4/DCP4 prefill policy are not enabled by this
 Compose recipe.
 
-The final profile reserves `19000000000` KV-cache bytes per rank. vLLM
-reported 1,034,442 aggregate GPU KV tokens: 3.95 times the configured
-262,144-token per-request maximum. This is aggregate concurrent capacity, not
-a one-million-token per-request context window.
+The final profile reserves `20000000000` KV-cache bytes per rank. vLLM
+reported 1,113,832 aggregate GPU KV tokens: 4.13 times the configured
+270,000-token per-request maximum. `MAX_NUM_SEQS=4` and
+`MAX_NUM_BATCHED_TOKENS=4096` are unchanged. This is aggregate concurrent
+capacity, not a one-million-token per-request context window.
 
 The exact public release layer was started through this repository's Compose
-recipe on two DGX Sparks. It reached HTTP 200 with zero container restarts,
-passed an exact-retrieval request with a measured 249,991-token prompt, and
-rendered the official low/high/max reasoning prefixes with developer
-instructions before one deduplicated tool block and the user turn.
+recipe on two DGX Sparks. It reached HTTP 200 with zero container restarts and
+completed four concurrent exact-retrieval requests with measured
+269,989-token prompts; all four returned the expected protected values in
+735.503 seconds. It also rendered the official low/high/max reasoning prefixes
+with developer instructions before one deduplicated tool block and the user
+turn.
 
 Tool-call qualification covered automatic and default selection, no-call,
 `tool_choice` values `none` and `required`, forced named functions, a strict
@@ -297,10 +300,10 @@ re-run representative quality, concurrency, long-context, and stability tests.
 | Variable | Validated default | Effect / constraint |
 |---|---:|---|
 | `GPU_MEMORY_UTILIZATION` | `0.82` | Retained runtime setting. Explicit `KV_CACHE_MEMORY_BYTES` controls KV allocation in this profile. |
-| `KV_CACHE_MEMORY_BYTES` | `19000000000` | Explicit bytes per rank. The validated TP2 profile exposes 1,034,442 aggregate GPU KV tokens. |
-| `MAX_MODEL_LEN` | `262144` | Maximum request length. Reducing it does not by itself reserve more KV memory. |
-| `MAX_NUM_BATCHED_TOKENS` | `4096` | Scheduler token budget. Larger values may improve prefill throughput but increase pressure and variability. |
-| `MAX_NUM_SEQS` | `4` | Maximum concurrent sequences. Keep graph capture and memory headroom in mind. |
+| `KV_CACHE_MEMORY_BYTES` | `20000000000` | Explicit bytes per rank. The validated TP2 profile exposes 1,113,832 aggregate GPU KV tokens. |
+| `MAX_MODEL_LEN` | `270000` | Qualified maximum request length. This remains below the model's 1,048,576-position architecture limit. |
+| `MAX_NUM_BATCHED_TOKENS` | `4096` | Scheduler token budget; unchanged for the 270K qualification. |
+| `MAX_NUM_SEQS` | `4` | Four concurrent 269,989-token prompts passed without reducing this limit. |
 | `NUM_SPECULATIVE_TOKENS` | `6` | Fixed DSpark proposal depth. This model requires at least its five-token DSpark block size. |
 | `DSPARK_DRAFT_SAMPLE_METHOD` | `greedy` | `greedy` is the published decode winner; `probabilistic` is the reference behavior. |
 | `DSPARK_SPS_CURVE` | `auto` | Enables confidence/cost-based pruning of draft positions. |

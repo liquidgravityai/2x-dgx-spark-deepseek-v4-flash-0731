@@ -57,14 +57,16 @@ recorded here.
 
 ### Aggregate KV capacity
 
-- Added `KV_CACHE_MEMORY_BYTES=19000000000` as an explicit per-rank default.
-- The final public image reserved 17.7 GiB per rank and reported 1,034,442
-  aggregate GPU KV tokens, or 3.95 times the 262,144-token per-request limit.
-- A preceding 20,000,000,000-byte sizing run exposed 1,088,923 tokens and
-  completed four concurrent measured 239,988-token exact-retrieval prompts.
-  The published profile uses the more conservative 19,000,000,000-byte value.
+- Increased the explicit per-rank default from 19,000,000,000 to
+  `KV_CACHE_MEMORY_BYTES=20000000000` and raised `MAX_MODEL_LEN` from 262,144
+  to 270,000.
+- The final live profile reserved 18.63 GiB per rank and reported 1,113,832
+  aggregate GPU KV tokens, or 4.13 times the 270,000-token per-request limit.
+- Completed four concurrent measured 269,989-token exact-retrieval prompts:
+  1,079,956 measured prompt tokens in total, all exact, in 735.503 seconds.
+- Kept `MAX_NUM_SEQS=4` and `MAX_NUM_BATCHED_TOKENS=4096` unchanged.
 - “1M-token KV” describes aggregate concurrent cache capacity. The qualified
-  per-request maximum remains 262,144 tokens.
+  per-request maximum is now 270,000 tokens.
 
 ### Validation
 
@@ -77,8 +79,8 @@ recorded here.
 - Verified official low/high/max prompt prefixes, developer-before-tools
   placement, one deduplicated tool block, and a required tool call from a
   developer-plus-user request.
-- Passed an exact-retrieval request with a measured 249,991-token prompt in
-  173.590 seconds on the final published tag.
+- Passed four concurrent exact-retrieval requests with measured 269,989-token
+  prompts; all four returned exact output in 735.503 seconds.
 - Passed 16 of 17 tool-call behavior cases and 64 of 64 repeated tool calls at
   concurrency 8. The one failure is the retained `tool_choice: "none"` model
   behavior documented below.
@@ -97,6 +99,10 @@ recorded here.
   instruction.
 - Native KV offload, LMCache, and the inherited mixed-Trellis/TP4-DCP4 paths
   are present but unqualified by this deployment.
+- The 20,000,000,000-byte cache is the highest qualified default. After the
+  four-way 270K run, host available memory was 3.72 GB on rank 0 and 5.46 GB
+  on rank 1; further increases require another full concurrency and stability
+  qualification.
 - The performance table in the README is retained from r16 and is not an r27
   throughput claim.
 

@@ -24,10 +24,53 @@ recorded here.
 - Replaced SparkInfer `b0976b7fd46b5d34357a5f615822b86792676feb`
   with base `59216fa25f3d5fc9d4df2d052e02d05f763906e9` and composed tree
   `2b9bf2a4d15770c0c23e19cc13a75843f2f0a995`.
-- Added the r24 compressed-MLA workspace reservation and physical cache-page
-  stride fixes.
-- Added native dense Trellis K6 support and the ARM64/SM121 ExLlamaV3 tree
-  `9f3a773b494537580619b528f67c6261198ab237`.
+
+### Gilded Gnosis / vLLM changes included
+
+- [vLLM #229](https://github.com/local-inference-lab/vllm/pull/229)
+  derives compressed-MLA scratch capacity from the cache's physical layout
+  contract instead of assuming only the logical 584-byte token payload. This
+  closes the TP2 long-concurrency workspace under-reservation reported in the
+  upstream release.
+- [vLLM #217](https://github.com/local-inference-lab/vllm/pull/217)
+  adds one shared native-offload mmap, decimal byte sizing, unlink-after-map
+  lifetime, isolated registration failures, and row-stride-aware segmented
+  host registration with 64-KiB alignment.
+- [vLLM #218](https://github.com/local-inference-lab/vllm/pull/218)
+  preserves sliding-window attention, MTP/EAGLE tails, replay boundaries,
+  retention intervals, and shared-prefix tails when native CPU KV offload is
+  used.
+- [vLLM #216](https://github.com/local-inference-lab/vllm/pull/216)
+  assigns semantic identities to PCIe graph channels so independent eager and
+  captured collectives do not alias because of local capture order.
+- [vLLM #228](https://github.com/local-inference-lab/vllm/pull/228)
+  adds qualified mixed K3/K4 EXL3 prefill, optional online dense Trellis
+  6-bit conversion, and persistent per-rank converted-weight caches with
+  checkpoint- and geometry-based invalidation, locking, and atomic writes.
+- [vLLM #230](https://github.com/local-inference-lab/vllm/pull/230)
+  keeps broadcast mHC preprocessing behind the custom-operation compile
+  boundary, preserving full-graph compilation.
+
+### SparkInfer changes included
+
+- [SparkInfer #106](https://github.com/local-inference-lab/sparkinfer/pull/106)
+  accepts exact-payload and padded compressed-MLA pages and derives decode,
+  single-GPU prefill, and multi-GPU prefill strides from the physical cache.
+  It does not copy or replace the cache allocation.
+- [SparkInfer #112](https://github.com/local-inference-lab/sparkinfer/pull/112)
+  consolidates W4A16 planning and CUDA-graph safeguards, exact paired-M8 mixed
+  K3/K4 prefill, the validated block-32 mixed geometry, and the native dense
+  Trellis 6-bit linear runtime. The required JIT sources and upstream license
+  are packaged in the image.
+- [SparkInfer #113](https://github.com/local-inference-lab/sparkinfer/pull/113)
+  makes named eager and CUDA-graph PCIe channels deterministic across ranks,
+  preallocates staged buffers with device-side generation tracking, and makes
+  CUDA-IPC teardown coordinated and retryable after partial failures.
+
+The Trellis “K6” above means a 6-bit weight format; it is separate from this
+deployment's `NUM_SPECULATIVE_TOKENS=6` setting. The r24 image contains the
+native-offload and online-EXL3 capabilities, but the published Compose profile
+does not enable either one.
 
 ### Fixed
 

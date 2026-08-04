@@ -78,7 +78,7 @@ recorded here.
   placement, one deduplicated tool block, and a required tool call from a
   developer-plus-user request.
 - Passed an exact-retrieval request with a measured 249,991-token prompt in
-  145.264 seconds.
+  173.590 seconds on the final published tag.
 - Passed 16 of 17 tool-call behavior cases and 64 of 64 repeated tool calls at
   concurrency 8. The one failure is the retained `tool_choice: "none"` model
   behavior documented below.

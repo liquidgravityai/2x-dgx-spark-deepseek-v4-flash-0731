@@ -8,7 +8,8 @@ are recorded here.
 ### Published image
 
 - Published immutable ARM64 tag `ghcr.io/liquidgravityai/2x-dgx-spark-deepseek-v4-flash-0731:r6-sglang-d2c405f-flashinfer-67f7637-cu132`.
-- Published manifest digest `PENDING_PUBLICATION`.
+- Published manifest digest
+  `sha256:4b9fd7e89a10d0333ee3e096ca25f9fa26e02a46dceae4fb016bc496fe4644d5`.
 - Kept the package's vLLM-oriented `latest` tag unchanged.
 - Added a release layer matching the repository's vLLM recipe structure.
 

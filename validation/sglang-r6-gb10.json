@@ -73,6 +73,17 @@
     "repository": "liquidgravityai/2x-dgx-spark-deepseek-v4-flash-0731",
     "branch": "sglang",
     "tag": "r6-sglang-d2c405f-flashinfer-67f7637-cu132",
-    "manifest_digest": "PENDING_PUBLICATION"
+    "manifest_digest": "sha256:4b9fd7e89a10d0333ee3e096ca25f9fa26e02a46dceae4fb016bc496fe4644d5",
+    "local_image_id": "sha256:a8330cacb40805bc5567df77a91f4bf1be7fef1d544c454bdf038d2b1b9b202d",
+    "build_revision": "80ba533c6b7105c211e677c400eb676666b8245b",
+    "compose_smoke": {
+      "expected": "SPARKINFER_OK",
+      "observed": "SPARKINFER_OK",
+      "wall_seconds": 2.3802056630374864,
+      "head_restarts": 0,
+      "worker_restarts": 0,
+      "head_oom_killed": false,
+      "worker_oom_killed": false
+    }
   }
 }

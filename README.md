@@ -18,7 +18,7 @@ ghcr.io/liquidgravityai/2x-dgx-spark-deepseek-v4-flash-0731:r6-sglang-d2c405f-fl
 Published manifest digest:
 
 ```text
-PENDING_PUBLICATION
+ghcr.io/liquidgravityai/2x-dgx-spark-deepseek-v4-flash-0731@sha256:4b9fd7e89a10d0333ee3e096ca25f9fa26e02a46dceae4fb016bc496fe4644d5
 ```
 
 Use the immutable tag for reproducible deployments. This SGLang branch does
@@ -83,7 +83,7 @@ not a universal per-workload parity claim.
 - NVIDIA Container Toolkit and Docker Compose v2 on both systems.
 - A working high-speed node-to-node fabric; the qualified deployment used RoCE.
 - The same model snapshot at the same absolute path on both nodes.
-- Approximately 100 GB of writable cache space per node for JIT artifacts.
+- At least 2 GB of writable cache space per node for JIT artifacts.
 - Access to `ghcr.io/liquidgravityai` for pulling the public image.
 
 ## 1. Download the model on both nodes
@@ -130,10 +130,12 @@ git switch sglang
 cp .env.example .env
 ```
 
-Create the cache directories:
+Create the main and FlashInfer autotune cache directories:
 
 ```bash
-mkdir -p /data/cache/deepseek-v4-flash-0731-sglang/sglang-root
+mkdir -p \\
+  /data/cache/deepseek-v4-flash-0731-sglang \\
+  /data/cache/deepseek-v4-flash-0731-sglang-root
 ```
 
 Fill every required value in `.env`. Both nodes use the same `MASTER_ADDR`,
@@ -230,6 +232,9 @@ Compose refuses to start while any of these are empty:
 | `IB_GID_INDEX` | GID index matching the selected RoCE address |
 | `MODEL_HOST_PATH` | Absolute path to the pinned model snapshot |
 | `CACHE_HOST_PATH` | Absolute writable cache directory |
+
+`ROOT_CACHE_HOST_PATH` optionally overrides the FlashInfer autotune cache. It
+defaults to `${CACHE_HOST_PATH}-root`.
 
 ## Performance and capacity knobs
 

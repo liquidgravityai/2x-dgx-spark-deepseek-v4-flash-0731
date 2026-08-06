@@ -53,7 +53,7 @@ services:
       - /dev/shm:/dev/shm
       - ${MODEL_HOST_PATH:?set MODEL_HOST_PATH to the downloaded model directory}:/model:ro
       - ${CACHE_HOST_PATH:?set CACHE_HOST_PATH to a writable cache directory}:/cache:rw
-      - ${CACHE_HOST_PATH:?set CACHE_HOST_PATH to a writable cache directory}/sglang-root:/root/.cache/sglang:rw
+      - ${ROOT_CACHE_HOST_PATH:-${CACHE_HOST_PATH:?set CACHE_HOST_PATH to a writable cache directory}-root}:/root/.cache/sglang:rw
     command:
       - python
       - -m

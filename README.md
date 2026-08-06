@@ -12,13 +12,13 @@ revision on both nodes.
 ## Published image
 
 ```text
-ghcr.io/liquidgravityai/2x-dgx-spark-deepseek-v4-flash-0731:r6-sglang-d2c405f-flashinfer-67f7637-cu132
+ghcr.io/liquidgravityai/2x-dgx-spark-deepseek-v4-flash-0731:r7-sglang-d2c405f-flashinfer-67f7637-cu132
 ```
 
 Published manifest digest:
 
 ```text
-ghcr.io/liquidgravityai/2x-dgx-spark-deepseek-v4-flash-0731@sha256:4b9fd7e89a10d0333ee3e096ca25f9fa26e02a46dceae4fb016bc496fe4644d5
+ghcr.io/liquidgravityai/2x-dgx-spark-deepseek-v4-flash-0731@sha256:786fc402e4267bbc1c58f813865ff674ccbe790b99b22f0047af9dbd46f06f42
 ```
 
 Use the immutable tag for reproducible deployments. This SGLang branch does
@@ -28,11 +28,13 @@ not move the repository package's vLLM-oriented `latest` tag.
 |---|---|
 | Architecture | Linux ARM64 / NVIDIA GB10 (SM 12.1a) |
 | CUDA | 13.2 |
-| Qualified base image ID | `sha256:b20aa35a5c1aba811b70239f9f9e5b5865d8a4ccad2d8efec9abf7c0226edaa9` |
+| Qualified base image ID | `sha256:e15a9e6743edd53584a6f041d9b32dbf9997d4453150e6beb6089b7056524508` |
 | SGLang | `d2c405f19df918c542c6cea9b1ddd59880e1e888` |
 | SGLang source tree | `b2b423131b41ef7ce4e458ac7384e49541c46ed6` |
 | SGLang performance tree | `b845e816dc7ddd34413834dc7a5b46586b2f5f49` |
-| SGLang final WO-A tree | `445a046ec440c761c8bfae7950bb18f379392f4b` |
+| SGLang adaptive WO-A tree | `445a046ec440c761c8bfae7950bb18f379392f4b` |
+| SGLang bounded hybrid-SWA tree | `d46b115c1504b2896b3990c1a71c3d6c11e95e4e` |
+| Hybrid-SWA patch SHA-256 | `cc9f621236e38ca13c37e99355eac91d26369127294a020c224a9891734912ba` |
 | SGL-Kernel | `fdebc938f7f4d16fe6b9f55dcd9a767cf0899ea1` |
 | FlashInfer | `67f76379a145f19793896394974e29e610cda912` |
 | FlashInfer final tree | `d8567dec0ff48f11c0ab1d17a05e944d50e48f7a` |
@@ -40,9 +42,9 @@ not move the repository package's vLLM-oriented `latest` tag.
 | Topology | 2 nodes, 1 GB10 per node, tensor parallel size 2 |
 
 The full machine-readable source, image, configuration, and measurement
-receipt is [`validation/sglang-r6-gb10.json`](validation/sglang-r6-gb10.json).
+receipt is [`validation/sglang-r7-gb10.json`](validation/sglang-r7-gb10.json).
 
-## r6 scope and validation
+## r7 scope and validation
 
 This branch is the SGLang counterpart to the vLLM recipe on `main`. It retains
 the same model revision, two-node RoCE topology, 270,000-token request limit,
@@ -56,22 +58,29 @@ uses checkpoint FP8 attention-projection weights for decode and verify, while
 retaining BF16 weights for large prefill batches. Fused mHC pre-normalization
 uses TileLang where qualified and falls back to DeepGEMM or Torch by shape.
 
+The r7 SGLang tree bounds each request's sliding-window KV retention. Once the
+configured SWA pool fills, every DSpark decode step evicts tokens outside the
+model's active window before scheduling the next step; a single request can no
+longer exhaust the pool merely by generating beyond its SWA allocation.
+
 The qualified profile exposes `1,113,832` maximum total tokens and SGLang
 reported `1,113,600` available KV tokens across both ranks. This is aggregate
 concurrent capacity, not a one-million-token per-request context window.
 
 ### Measured comparison with the retained vLLM profile
 
-| Workload | vLLM | SGLang r6 | SGLang delta |
+| Workload | vLLM | SGLang r7 | SGLang delta |
 |---|---:|---:|---:|
 | Physical DSpark round | 67.69 ms | 67.52 ms | 0.2% faster |
-| C4 sustained decode, concurrency 4 | 81.46 tok/s | 86.83 tok/s | 6.6% faster |
+| C4 sustained decode, concurrency 4 | 81.46 tok/s | 86.99 tok/s | 6.8% faster |
 | 127,900-token exact retrieval | 1,941 prompt tok/s | 2,085 prompt tok/s | 7.4% faster |
-| 8,192-token C1 Tetris generation | 62.44 tok/s | 59.65 tok/s | 4.5% slower |
+| 8,192-token C1 Tetris generation | 62.44 tok/s | 61.10 tok/s | 2.1% slower |
 
-The retained SGLang service passed the canonical `SPARKINFER_OK` smoke request,
-two repeated 127,900-token exact-retrieval requests, and the measured C4 and
-Tetris workloads with both containers at zero restarts and zero OOM kills.
+The fixed r7 image passed the canonical `SPARKINFER_OK` smoke request and a
+targeted 13,000-token generation with an intentionally reduced 11,008-token
+SWA pool, zero request retractions, and no container restart or OOM kill. The
+unchanged r6 kernel and serving profile had already passed two repeated
+127,900-token exact-retrieval requests and the measured concurrency workloads.
 The SGLang profile has **not** completed the vLLM recipe's identical four-way
 269,989-token ceiling test or equivalent structured-output/tool-call
 qualification. It is a strong long-context and concurrent-serving alternative,
@@ -251,11 +260,18 @@ re-run representative quality, concurrency, long-context, and stability tests.
 | `MEM_FRACTION_STATIC` | `0.82` | Static memory fraction |
 | `DSPARK_BLOCK_SIZE` | `5` | DSpark draft block; six-token verify window |
 | `RAGGED_VERIFY_MODE` | `compact` | Profiled compact verification |
+| `SWA_FULL_TOKENS_RATIO` | `0.1` | SWA KV allocation fraction; r7 evicts out-of-window tokens |
 | `CUDA_DEVICE_MAX_CONNECTIONS` | `1` | Qualified launch scheduling |
 
 Do not set DSpark block size 6 with this checkpoint. Gamma 6 produced the
 invalid CUDA-graph capture shape `[4, 5, -1]` against its fixed gamma-5
-confidence head.
+confidence head. A profiled gamma 7 candidate was also rejected: compact mode
+failed CUDA-graph capture, while static mode reduced C1/C4 decode throughput by
+11.8%/22.7% and the 8,192-token Tetris workload by 16.7%.
+
+The FP4 DeepGEMM indexer is intentionally disabled. It improved the measured
+128K prefill rate by 3.8%, but reduced C1/C4 decode by 1.9%/2.4% and the
+8,192-token Tetris workload by 8.9%.
 
 ## Security and operational notes
 
@@ -293,8 +309,8 @@ vLLM branch: it embeds the qualified SPS table, entrypoint, and OCI provenance
 on top of the validated local SGLang base.
 
 ```bash
-BASE_IMAGE=spark-sglang:ds4-0731-d2c405f-sm121-cu132-ormandj-r6
-IMAGE=ghcr.io/liquidgravityai/2x-dgx-spark-deepseek-v4-flash-0731:r6-sglang-d2c405f-flashinfer-67f7637-cu132
+BASE_IMAGE=spark-sglang:ds4-0731-d2c405f-sm121-cu132-swa-r7
+IMAGE=ghcr.io/liquidgravityai/2x-dgx-spark-deepseek-v4-flash-0731:r7-sglang-d2c405f-flashinfer-67f7637-cu132
 
 docker build \
   --build-arg BASE_IMAGE="$BASE_IMAGE" \
@@ -305,7 +321,7 @@ docker build \
 ```
 
 The qualified base image ID and every final source tree and patch digest are
-recorded in `validation/sglang-r6-gb10.json` and as labels on the base image.
+recorded in `validation/sglang-r7-gb10.json` and as labels on the base image.
 
 ## Provenance
 

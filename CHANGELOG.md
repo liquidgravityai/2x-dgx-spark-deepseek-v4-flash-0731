@@ -3,6 +3,44 @@
 All notable changes to the published two-node DGX Spark SGLang recipe and image
 are recorded here.
 
+## 2026-08-06 - SGLang r7 bounded hybrid-SWA release
+
+### Published image
+
+- Published immutable ARM64 tag `ghcr.io/liquidgravityai/2x-dgx-spark-deepseek-v4-flash-0731:r7-sglang-d2c405f-flashinfer-67f7637-cu132`.
+- Published manifest digest
+  `sha256:786fc402e4267bbc1c58f813865ff674ccbe790b99b22f0047af9dbd46f06f42`.
+- Retained the package's vLLM-oriented `latest` tag unchanged.
+
+### Correctness
+
+- Added per-step eviction of out-of-window DSpark SWA KV entries. Before the
+  fix, one request exhausted an intentionally reduced 11,008-token SWA pool
+  and returned HTTP 500. The fixed tree completed all 13,000 requested tokens
+  with zero retractions, restarts, or OOM kills.
+- Pinned final SGLang tree
+  `d46b115c1504b2896b3990c1a71c3d6c11e95e4e` and hybrid-SWA patch SHA-256
+  `cc9f621236e38ca13c37e99355eac91d26369127294a020c224a9891734912ba`.
+
+### Profiling
+
+- Retained DSpark block size 5 with the r6 profiled compact-verification table.
+- Rejected block size 7: compact mode failed CUDA-graph capture and profiled
+  static mode reduced C1/C4 decode by 11.8%/22.7% and the 8,192-token Tetris
+  workload by 16.7%.
+- Rejected the FP4 DeepGEMM indexer as the general-purpose default: its 3.8%
+  128K-prefill improvement came with 1.9%/2.4% C1/C4 decode regressions and an
+  8.9% Tetris regression.
+- The retained fixed profile measured 86.99 tok/s at C4, 2,199 prompt tok/s
+  for 128K prefill, and 61.10 tok/s on the 8,192-token C1 Tetris workload.
+
+### Validation
+
+- Deployed the exact release image through the public Compose recipe on both
+  Sparks. Both containers remained running with zero restarts and zero OOM
+  kills; the canonical chat smoke returned exactly `SPARKINFER_OK`.
+- Added the machine-readable `validation/sglang-r7-gb10.json` receipt.
+
 ## 2026-08-06 - SGLang r6 profiled DSpark release
 
 ### Published image

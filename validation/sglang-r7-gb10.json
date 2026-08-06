@@ -1,0 +1,149 @@
+{
+  "schema": "local-inference.sglang-ds4-0731-validation-v1",
+  "validated_at": "2026-08-06T17:45:11Z",
+  "hardware": [
+    "NVIDIA GB10 / SM121a",
+    "2 nodes",
+    "1 GPU per node",
+    "RoCE TP2"
+  ],
+  "model": {
+    "id": "deepseek-ai/DeepSeek-V4-Flash-0731",
+    "revision": "9e165c30e2704aec5d9d593cce3eebd58bbef1cb"
+  },
+  "image": {
+    "tag": "spark-sglang:ds4-0731-d2c405f-sm121-cu132-swa-r7",
+    "id": "sha256:e15a9e6743edd53584a6f041d9b32dbf9997d4453150e6beb6089b7056524508"
+  },
+  "sources": {
+    "base": {
+      "system_image_id": "sha256:280e894e854fb686dc05e5a52c8c5816609351497c36f3e718edbda98a31c0a2",
+      "build_image_id": "sha256:1cece2c2cd83d63424d92021bb63701d689b342b838107507d6c9d0ae3a25de0",
+      "sglang_image_id": "sha256:0dc1facaa1ec2a50e2beea5b5bca9ab08afa09b08ed80b7485fb1e963477a3a0",
+      "sglang_commit": "c662a9fd6e35c2548c45c09ece8d3f47846d61f2",
+      "flashinfer_commit": "8a49f9a242695fed9173cd5b19da45c9bd316503",
+      "b12x_commit": "80eb49b7683b32a3a1197c03d69142dd9f835cc7",
+      "cutlass_commit": "d80a4e53b52b42550659a8696dab32705265e324"
+    },
+    "sglang": {
+      "commit": "d2c405f19df918c542c6cea9b1ddd59880e1e888",
+      "tree": "b2b423131b41ef7ce4e458ac7384e49541c46ed6",
+      "performance_patch_sha256": "034c1214ae90de6ff4684e6a8211065571f65ac18e44eab47264685da6ecf271",
+      "performance_tree": "b845e816dc7ddd34413834dc7a5b46586b2f5f49",
+      "woa_patch_sha256": "0072b9daf24f2df20c64a93259f8d9b412254fd8e37c7edbe93e659499bb384c",
+      "effective_tree": "d46b115c1504b2896b3990c1a71c3d6c11e95e4e",
+      "woa_effective_tree": "445a046ec440c761c8bfae7950bb18f379392f4b",
+      "swa_patch_sha256": "cc9f621236e38ca13c37e99355eac91d26369127294a020c224a9891734912ba"
+    },
+    "sgl_kernel_commit": "fdebc938f7f4d16fe6b9f55dcd9a767cf0899ea1",
+    "flashinfer": {
+      "commit": "67f76379a145f19793896394974e29e610cda912",
+      "tree": "eb3d93ed91e895c40b5c8c8ebdcb6bfae88637a8",
+      "performance_patch_sha256": "89e1dd5edeadef50bc4187885de75a832f5dd17b1e4e8fc6461b4520e015094d",
+      "effective_tree": "d8567dec0ff48f11c0ab1d17a05e944d50e48f7a"
+    }
+  },
+  "profile": {
+    "tp_size": 2,
+    "context_length": 270000,
+    "max_running_requests": 4,
+    "kv_cache_dtype": "fp8_e4m3",
+    "kv_cache_tokens": 1113600,
+    "dspark_block_size": 5,
+    "verify_window_tokens": 6,
+    "ragged_verify_mode": "compact",
+    "sps_table_sha256": "ed7635aeb7c4845bea8446bf943ec278fa18ce31075a8659cac92064009add6a",
+    "swa_full_tokens_ratio": 0.1
+  },
+  "checks": {
+    "head_restarts": 0,
+    "worker_restarts": 0,
+    "head_oom_killed": false,
+    "worker_oom_killed": false,
+    "smoke_expected": "SPARKINFER_OK",
+    "smoke_observed": "SPARKINFER_OK",
+    "retrieval_127900_exact_runs": 2,
+    "retrieval_receipt": "carried forward from r6; source kernels and serving profile are unchanged outside the SWA scheduler fix",
+    "swa_regression": {
+      "reproduction_tree": "445a046ec440c761c8bfae7950bb18f379392f4b",
+      "swa_full_tokens_ratio": 0.01,
+      "swa_capacity_tokens": 11008,
+      "requested_new_tokens": 13000,
+      "before": "HTTP 500 after 11008 generated tokens",
+      "fixed_completion_tokens": 13000,
+      "fixed_finish_reason": "length",
+      "fixed_num_retractions": 0,
+      "fixed_wall_seconds": 134.51487823808566,
+      "fixed_spec_accept_length": 5.977011494252873
+    }
+  },
+  "measurements": {
+    "c1_ctx0_sustained_decode_tps": 39.843133056198305,
+    "c4_ctx0_sustained_decode_tps": 86.99271375933375,
+    "prefill_128k_prompt_tokens": 127766,
+    "prefill_128k_client_tps": 2199.0,
+    "retrieval_127900_mean_seconds": 61.33172308548819,
+    "retrieval_127900_prompt_tps": 2085.38083663041,
+    "tetris_8192_wall_seconds": 134.06466699799057,
+    "tetris_8192_output_tps": 61.10483980184567
+  },
+  "known_limit": "The matched vLLM fixed-K6 reference remains 2.1% faster on the 8192-token C1 Tetris workload; four-way 269989-token and structured-output/tool-call parity are not yet qualified.",
+  "release": {
+    "repository": "liquidgravityai/2x-dgx-spark-deepseek-v4-flash-0731",
+    "branch": "sglang",
+    "tag": "r7-sglang-d2c405f-flashinfer-67f7637-cu132",
+    "manifest_digest": "sha256:786fc402e4267bbc1c58f813865ff674ccbe790b99b22f0047af9dbd46f06f42",
+    "local_image_id": "sha256:4320b91e29009dd7ad5389b9994e0b69b7ea22da1c5f551e3a8dc4cd69dc8b64",
+    "build_revision": "c51e90981621896c1f73f8258ced83ca4f36b4da",
+    "compose_smoke": {
+      "expected": "SPARKINFER_OK",
+      "observed": "SPARKINFER_OK",
+      "wall_seconds": 2.1494148189667612,
+      "head_restarts": 0,
+      "worker_restarts": 0,
+      "head_oom_killed": false,
+      "worker_oom_killed": false
+    }
+  },
+  "profiling": {
+    "dspark_depth_7": {
+      "decision": "rejected",
+      "compact_mode": "CUDA graph capture failed: shape [4, 5, -1] is invalid for input of size 114688",
+      "static_sps_table": {
+        "sample_batch_tokens": [
+          8,
+          16,
+          24,
+          32
+        ],
+        "sample_steps_per_sec": [
+          13.72919977334956,
+          9.883766582924826,
+          8.130596385118535,
+          6.803183416554576
+        ],
+        "max_batch_tokens": 32
+      },
+      "static_decode_c1_tps": 35.14723311922466,
+      "static_decode_c4_tps": 67.2719163175662,
+      "static_vs_depth_5_pct": {
+        "c1": -11.785970572018345,
+        "c4": -22.669481833070925,
+        "tetris_8192": -16.669777595530576
+      }
+    },
+    "fp4_deepgemm_indexer": {
+      "decision": "rejected as general-purpose default",
+      "decode_c1_tps": 39.1029170215244,
+      "decode_c4_tps": 84.90057202923448,
+      "prefill_128k_client_tps": 2283.0,
+      "tetris_8192_output_tps": 55.67256933338071,
+      "vs_retained_pct": {
+        "c1": -1.8578258733565,
+        "c4": -2.404962024621049,
+        "prefill_128k": 3.8199181446111785,
+        "tetris_8192": -8.890082170382973
+      }
+    }
+  }
+}

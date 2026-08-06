@@ -1,10 +1,10 @@
 2x DGX Spark Recipe for DeepSeek V4 Flash 0731
 Copyright 2026 Liquid Gravity AI
 
-This product includes modified launcher code derived from vLLM,
-Copyright the vLLM contributors, licensed under the Apache License 2.0.
-https://github.com/local-inference-lab/vllm
+This product includes modified runtime code derived from SGLang,
+Copyright the SGLang contributors, licensed under the Apache License 2.0.
+https://github.com/sgl-project/sglang
 
-This product incorporates SparkInfer and B12X components from their respective
-source repositories and retains the license and notice material packaged in the
-container image.
+This product incorporates FlashInfer, SGL-Kernel, B12X, DeepGEMM, TileLang,
+and CUTLASS components from their respective source repositories and retains
+the license and notice material packaged in the container image.

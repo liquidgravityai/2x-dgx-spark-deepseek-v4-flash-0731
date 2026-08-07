@@ -1,0 +1,295 @@
+{
+  "schema": "local-inference.sglang.ds4-0731-tool-backend-qualification-v1",
+  "validated_at": "2026-08-07T03:35:32Z",
+  "goal": "Determine whether applying SGLang PR #33568 or switching FlashInfer MXFP4 to Marlin meaningfully improves the exact concurrency-eight tool-call stress workload.",
+  "discovery": {
+    "pr_33568": "https://github.com/sgl-project/sglang/pull/33568",
+    "result": "already_applied_before_original_stress_baseline",
+    "evidence": {
+      "retained_overlay": "sglang-ds4-0731-perf-r5.patch lines 864-875",
+      "retained_overlay_sha256": "034c1214ae90de6ff4684e6a8211065571f65ac18e44eab47264685da6ecf271",
+      "live_source": "/opt/sglang/python/sglang/srt/entrypoints/openai/serving_chat.py lines 1221-1228 use tool.model_dump(exclude_unset=True, by_alias=True)",
+      "duplicate_patch_build": "correctly rejected as reversed/already applied"
+    },
+    "implication": "There is no pre/post PR #33568 image delta. The original 117/128 baseline already measured the fix."
+  },
+  "workload": {
+    "requests_per_run": 64,
+    "concurrency": 8,
+    "temperature": 0,
+    "max_tokens": 192,
+    "cities": [
+      "Lisbon",
+      "Oslo",
+      "Cairo",
+      "Seoul",
+      "Lima",
+      "Auckland",
+      "Montréal",
+      "Reykjavík",
+      "Nairobi",
+      "Singapore",
+      "Warsaw",
+      "Brisbane",
+      "Bogotá",
+      "Helsinki",
+      "Mumbai",
+      "Vienna"
+    ],
+    "modes_per_run": {
+      "forced_get_weather_celsius": 16,
+      "required_get_local_time": 16,
+      "forced_compute_total_strict": 16,
+      "auto_get_weather_fahrenheit": 16
+    },
+    "validation": "HTTP 200; one choice; finish_reason stop or tool_calls; exactly one nonempty-id tool call; expected function; JSON-decodable arguments; exact required location/unit or exact strict compute_total object.",
+    "original_vllm_runner_path": "/tmp/stress-ds4-toolcalls.py",
+    "original_vllm_runner_sha256": "7f7f6e5f4b26c32058b6cb217dcee021f01ab10f361fda890630b3a9bcb2e200",
+    "sglang_runner_path": "/tmp/stress-ds4-toolcalls-sglang.py",
+    "sglang_runner_sha256": "b71bf10869386edcf761564010c332f2f459d06f29dbd50d31b58a3e3a5887e0",
+    "only_source_change": {
+      "from": "BASE = \"http://192.168.1.203:8000\"",
+      "to": "BASE = \"http://spark-d4c5:8000\""
+    },
+    "runner_source": "#!/usr/bin/env python3\nimport json\nimport statistics\nimport sys\nimport time\nimport urllib.error\nimport urllib.request\nfrom collections import Counter\nfrom concurrent.futures import ThreadPoolExecutor, as_completed\n\nBASE = \"http://spark-d4c5:8000\"\nMODEL = \"deepseek-v4-flash-0731\"\nTIMEOUT = 300\nREQUESTS = 64\nCONCURRENCY = 8\n\nWEATHER = {\n    \"type\": \"function\",\n    \"function\": {\n        \"name\": \"get_weather\",\n        \"description\": \"Get current weather for a location.\",\n        \"parameters\": {\n            \"type\": \"object\",\n            \"properties\": {\n                \"location\": {\"type\": \"string\"},\n                \"unit\": {\"type\": \"string\", \"enum\": [\"celsius\", \"fahrenheit\"]},\n            },\n            \"required\": [\"location\", \"unit\"],\n            \"additionalProperties\": False,\n        },\n    },\n}\nTIME = {\n    \"type\": \"function\",\n    \"function\": {\n        \"name\": \"get_local_time\",\n        \"description\": \"Get local time for a location.\",\n        \"parameters\": {\n            \"type\": \"object\",\n            \"properties\": {\"location\": {\"type\": \"string\"}},\n            \"required\": [\"location\"],\n            \"additionalProperties\": False,\n        },\n    },\n}\nCOMPUTE = {\n    \"type\": \"function\",\n    \"function\": {\n        \"name\": \"compute_total\",\n        \"description\": \"Perform arithmetic over integer values.\",\n        \"strict\": True,\n        \"parameters\": {\n            \"type\": \"object\",\n            \"properties\": {\n                \"operation\": {\"type\": \"string\", \"enum\": [\"add\", \"multiply\"]},\n                \"values\": {\"type\": \"array\", \"items\": {\"type\": \"integer\"}, \"minItems\": 2, \"maxItems\": 2},\n                \"rounded\": {\"type\": \"boolean\"},\n                \"label\": {\"type\": \"string\"},\n            },\n            \"required\": [\"operation\", \"values\", \"rounded\", \"label\"],\n            \"additionalProperties\": False,\n        },\n    },\n}\nTOOLS = [WEATHER, TIME, COMPUTE]\nCITIES = [\n    \"Lisbon\", \"Oslo\", \"Cairo\", \"Seoul\", \"Lima\", \"Auckland\", \"Montréal\", \"Reykjavík\",\n    \"Nairobi\", \"Singapore\", \"Warsaw\", \"Brisbane\", \"Bogotá\", \"Helsinki\", \"Mumbai\", \"Vienna\",\n]\n\n\ndef health():\n    try:\n        with urllib.request.urlopen(f\"{BASE}/health\", timeout=10) as response:\n            return response.status\n    except Exception as exc:\n        return f\"ERROR: {exc}\"\n\n\ndef payload_for(index):\n    city = CITIES[index % len(CITIES)]\n    mode = index % 4\n    if mode == 0:\n        expected_name = \"get_weather\"\n        expected = {\"city\": city, \"unit\": \"celsius\"}\n        payload = {\n            \"messages\": [{\"role\": \"user\", \"content\": f\"Call get_weather for {city} using Celsius.\"}],\n            \"tools\": TOOLS,\n            \"tool_choice\": {\"type\": \"function\", \"function\": {\"name\": \"get_weather\"}},\n        }\n    elif mode == 1:\n        expected_name = \"get_local_time\"\n        expected = {\"city\": city}\n        payload = {\n            \"messages\": [{\"role\": \"user\", \"content\": f\"Use the appropriate tool to get the current local time in {city}.\"}],\n            \"tools\": [WEATHER, TIME],\n            \"tool_choice\": \"required\",\n        }\n    elif mode == 2:\n        left = index + 3\n        right = index + 5\n        expected_name = \"compute_total\"\n        expected = {\"values\": [left, right]}\n        payload = {\n            \"messages\": [{\"role\": \"user\", \"content\": f\"Call compute_total to add integers {left} and {right}; rounded false; label batch-{index}.\"}],\n            \"tools\": TOOLS,\n            \"tool_choice\": {\"type\": \"function\", \"function\": {\"name\": \"compute_total\"}},\n        }\n    else:\n        expected_name = \"get_weather\"\n        expected = {\"city\": city, \"unit\": \"fahrenheit\"}\n        payload = {\n            \"messages\": [{\"role\": \"user\", \"content\": f\"You must call get_weather for {city} using Fahrenheit.\"}],\n            \"tools\": [WEATHER, TIME],\n            \"tool_choice\": \"auto\",\n        }\n    return payload, expected_name, expected\n\n\ndef run_one(index):\n    payload, expected_name, expected = payload_for(index)\n    body = json.dumps({\"model\": MODEL, \"temperature\": 0, \"max_tokens\": 192, **payload}).encode()\n    request = urllib.request.Request(\n        f\"{BASE}/v1/chat/completions\",\n        data=body,\n        headers={\"Content-Type\": \"application/json\"},\n    )\n    started = time.monotonic()\n    try:\n        with urllib.request.urlopen(request, timeout=TIMEOUT) as response:\n            status = response.status\n            data = json.loads(response.read())\n    except urllib.error.HTTPError as exc:\n        return {\"index\": index, \"passed\": False, \"status\": exc.code, \"error\": exc.read().decode(errors=\"replace\"), \"elapsed_s\": round(time.monotonic() - started, 3)}\n    elapsed = time.monotonic() - started\n    try:\n        assert status == 200, status\n        choices = data.get(\"choices\") or []\n        assert len(choices) == 1, data\n        choice = choices[0]\n        assert choice.get(\"finish_reason\") in {\"tool_calls\", \"stop\"}, choice\n        calls = choice[\"message\"].get(\"tool_calls\") or []\n        assert len(calls) == 1, calls\n        call = calls[0]\n        assert call.get(\"id\"), call\n        function = call.get(\"function\") or {}\n        assert function.get(\"name\") == expected_name, function\n        args = json.loads(function[\"arguments\"])\n        assert isinstance(args, dict), args\n        if expected_name == \"get_weather\":\n            assert expected[\"city\"].casefold() in args[\"location\"].casefold(), (expected, args)\n            assert args[\"unit\"] == expected[\"unit\"], (expected, args)\n        elif expected_name == \"get_local_time\":\n            assert expected[\"city\"].casefold() in args[\"location\"].casefold(), (expected, args)\n        else:\n            assert args == {\n                \"operation\": \"add\",\n                \"values\": expected[\"values\"],\n                \"rounded\": False,\n                \"label\": f\"batch-{index}\",\n            }, (expected, args)\n        return {\n            \"index\": index,\n            \"passed\": True,\n            \"name\": expected_name,\n            \"finish_reason\": choice.get(\"finish_reason\"),\n            \"elapsed_s\": round(elapsed, 3),\n        }\n    except Exception as exc:\n        return {\"index\": index, \"passed\": False, \"status\": status, \"error\": repr(exc), \"response\": data, \"elapsed_s\": round(elapsed, 3)}\n\n\nstarted = time.monotonic()\nprint(f\"START requests={REQUESTS} concurrency={CONCURRENCY} health={health()}\", flush=True)\nresults = []\nwith ThreadPoolExecutor(max_workers=CONCURRENCY) as executor:\n    futures = [executor.submit(run_one, index) for index in range(REQUESTS)]\n    for future in as_completed(futures):\n        result = future.result()\n        results.append(result)\n        if not result[\"passed\"]:\n            print(\"FAIL \" + json.dumps(result, sort_keys=True), flush=True)\n\nlatencies = sorted(result[\"elapsed_s\"] for result in results)\ndef percentile(fraction):\n    if not latencies:\n        return None\n    return latencies[min(len(latencies) - 1, int(round((len(latencies) - 1) * fraction)))]\n\nsummary = {\n    \"requests\": REQUESTS,\n    \"concurrency\": CONCURRENCY,\n    \"passed\": sum(result[\"passed\"] for result in results),\n    \"failed\": sum(not result[\"passed\"] for result in results),\n    \"names\": dict(Counter(result.get(\"name\") for result in results if result[\"passed\"])),\n    \"finish_reasons\": dict(Counter(result.get(\"finish_reason\") for result in results if result[\"passed\"])),\n    \"protocol_finish_reason_violations\": sum(\n        result.get(\"finish_reason\") != \"tool_calls\" for result in results if result[\"passed\"]\n    ),\n    \"latency_s\": {\n        \"min\": min(latencies) if latencies else None,\n        \"median\": round(statistics.median(latencies), 3) if latencies else None,\n        \"p95\": percentile(0.95),\n        \"max\": max(latencies) if latencies else None,\n    },\n    \"wall_s\": round(time.monotonic() - started, 3),\n    \"health\": health(),\n}\nprint(\"SUMMARY \" + json.dumps(summary, sort_keys=True), flush=True)\nsys.exit(1 if summary[\"failed\"] or summary[\"health\"] != 200 else 0)\n"
+  },
+  "runtime": {
+    "image": "ghcr.io/liquidgravityai/2x-dgx-spark-deepseek-v4-flash-0731:r7-sglang-d2c405f-flashinfer-67f7637-cu132",
+    "image_id": "sha256:4320b91e29009dd7ad5389b9994e0b69b7ea22da1c5f551e3a8dc4cd69dc8b64",
+    "tp_size": 2,
+    "dp_size": 1,
+    "enable_dp_attention": false,
+    "attention_backend": "dsv4",
+    "kv_cache_dtype": "fp8_e4m3",
+    "speculative_algorithm": "DSPARK",
+    "speculative_num_draft_tokens": 6
+  },
+  "original_flashinfer_baseline": {
+    "source_receipt": "llm-inference-bench/results/ds4f-0731-sglang-r7-tool-stress-c8-20260807.json",
+    "runs": [
+      {
+        "concurrency": 8,
+        "failed": 4,
+        "finish_reasons": {
+          "tool_calls": 60
+        },
+        "health": 200,
+        "latency_s": {
+          "max": 16.908,
+          "median": 7.952,
+          "min": 3.153,
+          "p95": 11.082
+        },
+        "names": {
+          "compute_total": 16,
+          "get_local_time": 15,
+          "get_weather": 29
+        },
+        "passed": 60,
+        "protocol_finish_reason_violations": 0,
+        "requests": 64,
+        "wall_s": 69.689
+      },
+      {
+        "concurrency": 8,
+        "failed": 7,
+        "finish_reasons": {
+          "tool_calls": 57
+        },
+        "health": 200,
+        "latency_s": {
+          "max": 12.508,
+          "median": 7.892,
+          "min": 3.232,
+          "p95": 10.895
+        },
+        "names": {
+          "compute_total": 13,
+          "get_local_time": 15,
+          "get_weather": 29
+        },
+        "passed": 57,
+        "protocol_finish_reason_violations": 0,
+        "requests": 64,
+        "wall_s": 67.414
+      }
+    ],
+    "aggregate": {
+      "passed": 117,
+      "requests": 128,
+      "pass_rate": 0.9140625,
+      "full_runs_passed": 0
+    }
+  },
+  "fresh_flashinfer_replication": {
+    "backend": "flashinfer_mxfp4",
+    "runs": [
+      {
+        "passed": 57,
+        "failed": 7,
+        "wall_s": 70.589,
+        "latency_s": {
+          "median": 8.25,
+          "p95": 12.541,
+          "max": 19.737
+        }
+      },
+      {
+        "passed": 58,
+        "failed": 6,
+        "wall_s": 66.401,
+        "latency_s": {
+          "median": 7.975,
+          "p95": 10.877,
+          "max": 12.364
+        }
+      }
+    ],
+    "aggregate": {
+      "passed": 115,
+      "requests": 128,
+      "pass_rate": 0.8984375,
+      "mean_wall_s": 68.495,
+      "total_wall_s": 136.99,
+      "mean_median_latency_s": 8.1125
+    },
+    "failure_indices": [
+      [
+        10,
+        15,
+        23,
+        27,
+        39,
+        51,
+        61
+      ],
+      [
+        19,
+        27,
+        44,
+        42,
+        46,
+        53
+      ]
+    ],
+    "failure_classes": {
+      "invalid_or_schema_wrong_arguments": 9,
+      "missing_or_raw_tool_call": 3,
+      "max_token_length": 1
+    },
+    "comparison_to_original": {
+      "pass_delta_percentage_points": -1.5625,
+      "interpretation": "no improvement; sampling variation around the same approximately 90 percent regime"
+    }
+  },
+  "marlin_candidate": {
+    "backend": "marlin",
+    "runs": [
+      {
+        "concurrency": 8,
+        "failed": 6,
+        "finish_reasons": {
+          "tool_calls": 58
+        },
+        "health": 200,
+        "latency_s": {
+          "max": 14.703,
+          "median": 8.931,
+          "min": 5.394,
+          "p95": 13.321
+        },
+        "names": {
+          "compute_total": 14,
+          "get_local_time": 16,
+          "get_weather": 28
+        },
+        "passed": 58,
+        "protocol_finish_reason_violations": 0,
+        "requests": 64,
+        "wall_s": 77.057
+      },
+      {
+        "concurrency": 8,
+        "failed": 6,
+        "finish_reasons": {
+          "tool_calls": 58
+        },
+        "health": 200,
+        "latency_s": {
+          "max": 13.136,
+          "median": 8.865,
+          "min": 2.913,
+          "p95": 12.801
+        },
+        "names": {
+          "compute_total": 15,
+          "get_local_time": 14,
+          "get_weather": 29
+        },
+        "passed": 58,
+        "protocol_finish_reason_violations": 0,
+        "requests": 64,
+        "wall_s": 76.434
+      }
+    ],
+    "aggregate": {
+      "passed": 116,
+      "requests": 128,
+      "pass_rate": 0.90625,
+      "mean_wall_s": 76.74549999999999,
+      "total_wall_s": 153.49099999999999,
+      "mean_median_latency_s": 8.898
+    },
+    "failure_indices": [
+      [
+        11,
+        23,
+        35,
+        39,
+        38,
+        58
+      ],
+      [
+        3,
+        9,
+        27,
+        26,
+        33,
+        51
+      ]
+    ],
+    "failure_classes": {
+      "invalid_or_schema_wrong_arguments": 9,
+      "missing_or_raw_tool_call": 2,
+      "max_token_length": 1
+    },
+    "comparison_to_fresh_flashinfer": {
+      "pass_delta_percentage_points": 0.78125,
+      "mean_wall_delta_percent": 12.045404774071077,
+      "mean_median_latency_delta_percent": 9.682588597842813
+    },
+    "decision": "reject; accuracy difference is one response out of 128 while wall time is 12.0 percent worse"
+  },
+  "combined_flashinfer_evidence": {
+    "passed": 232,
+    "requests": 256,
+    "pass_rate": 0.90625,
+    "wilson_95": [
+      0.8642970784410525,
+      0.9361906032850452
+    ]
+  },
+  "conclusion": {
+    "meaningfully_improved": false,
+    "reason": "PR #33568 was already in the tested image. Marlin produced statistically indistinguishable tool-call validity and materially worse latency.",
+    "retained_backend": "flashinfer_mxfp4",
+    "retained_image": "r7-sglang-d2c405f-flashinfer-67f7637-cu132",
+    "new_image_published": false,
+    "service_restored": {
+      "health": 200,
+      "smoke": "SPARKINFER_OK",
+      "head_state": "running",
+      "worker_state": "running"
+    }
+  }
+}

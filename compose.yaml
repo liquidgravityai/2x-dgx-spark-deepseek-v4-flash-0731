@@ -73,6 +73,7 @@ services:
       - --swa-full-tokens-ratio=${SWA_FULL_TOKENS_RATIO:-0.1}
       - --mem-fraction-static=${MEM_FRACTION_STATIC:-0.82}
       - --cuda-graph-max-bs-decode=${CUDA_GRAPH_MAX_BS:-4}
+      - --moe-runner-backend=${MOE_RUNNER_BACKEND:-flashinfer_mxfp4}
       - --fp8-gemm-backend=auto
       - --speculative-algorithm=DSPARK
       - --speculative-dspark-block-size=${DSPARK_BLOCK_SIZE:-5}

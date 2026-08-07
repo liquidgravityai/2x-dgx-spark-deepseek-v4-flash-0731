@@ -258,6 +258,7 @@ re-run representative quality, concurrency, long-context, and stability tests.
 | `CHUNKED_PREFILL_SIZE` | `8192` | Chunked-prefill size |
 | `MAX_PREFILL_TOKENS` | `16384` | Maximum prefill batch |
 | `MEM_FRACTION_STATIC` | `0.82` | Static memory fraction |
+| `MOE_RUNNER_BACKEND` | `flashinfer_mxfp4` | Qualified MXFP4 expert backend; Marlin was slower without improving tool accuracy |
 | `DSPARK_BLOCK_SIZE` | `5` | DSpark draft block; six-token verify window |
 | `RAGGED_VERIFY_MODE` | `compact` | Profiled compact verification |
 | `SWA_FULL_TOKENS_RATIO` | `0.1` | SWA KV allocation fraction; r7 evicts out-of-window tokens |

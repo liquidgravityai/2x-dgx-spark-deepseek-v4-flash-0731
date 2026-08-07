@@ -3,6 +3,38 @@
 All notable changes to the published two-node DGX Spark SGLang recipe and image
 are recorded here.
 
+## 2026-08-07 - Tool-call backend qualification
+
+### Correctness
+
+- Confirmed that the r7 performance overlay and live image already contain
+  SGLang PR
+  [#33568](https://github.com/sgl-project/sglang/pull/33568): DSV4 tools are
+  serialized with `exclude_unset=True, by_alias=True`, matching the
+  checkpoint's reference encoder. The original 117/128 tool-stress result
+  therefore already measured this fix.
+- Repeated the exact 64-request, concurrency-eight stress workload twice.
+  FlashInfer MXFP4 returned 115/128 valid calls versus the prior 117/128;
+  across all four runs it returned 232/256, or 90.6%. This is the same
+  operating regime, not a meaningful improvement.
+
+### Backend comparison
+
+- Tested Marlin with the otherwise unchanged two-node r7 configuration.
+  Marlin returned 116/128 valid calls, one more than the fresh FlashInfer
+  pair but one fewer than the original FlashInfer pair.
+- Rejected Marlin: the accuracy difference was noise-sized while mean wall
+  time increased 12.0% and mean median request latency increased 9.7%.
+- Explicitly pinned the retained `flashinfer_mxfp4` backend in Compose and
+  `.env.example` so future SGLang defaults cannot silently change it.
+
+### Release decision
+
+- No new image was published: PR #33568 was already present and Marlin was
+  not a better build. The immutable r7 image and digest remain current.
+- Added `validation/sglang-r7-tool-backend-qualification.json` with the
+  complete machine-readable comparison and restoration smoke result.
+
 ## 2026-08-06 - SGLang r7 bounded hybrid-SWA release
 
 ### Published image

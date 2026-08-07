@@ -1,0 +1,211 @@
+{
+  "candidate_tool_stress": {
+    "failed": 0,
+    "finish_reasons": {
+      "tool_calls": 128
+    },
+    "passed": 128,
+    "protocol_finish_reason_violations": 0,
+    "rate": 1.0,
+    "requests": 128,
+    "run_median_latency_seconds": [
+      13.265,
+      13.242
+    ],
+    "run_passed": [
+      64,
+      64
+    ],
+    "run_wall_seconds": [
+      107.31,
+      105.94
+    ],
+    "runs": 2
+  },
+  "decision": {
+    "known_tradeoff": "Concurrent tool-bearing chat requests queue and run one at a time until the upstream DSV4 batch-corruption defect is fixed.",
+    "qualified": true,
+    "reason": "Three exact stress runs on the gated candidate/published image returned 192/192 valid calls; streaming and mixed isolation passed; ordinary chat still reached four running requests; Tetris throughput was within 0.94% of the r7 median.",
+    "selected_profile": "r8 FlashInfer MXFP4 plus DSPARK K6 with exclusive tool-bearing chat generation and shared C4 ordinary chat generation"
+  },
+  "defect_isolation": {
+    "conclusion": "The exact failure is generated only when DSV4 executes overlapping requests; serial generation removes it. The release gates tool-bearing chat generations exclusively rather than reducing the server-wide C4 limit.",
+    "global_schema_strict_level_2": {
+      "conclusion": "Schema enforcement cannot correct schema-valid but prompt-wrong values.",
+      "passed": 118,
+      "rate": 0.921875,
+      "requests": 128,
+      "run_passed": [
+        58,
+        60
+      ],
+      "run_wall_seconds": [
+        69.631,
+        68.936
+      ]
+    },
+    "max_running_requests_1": {
+      "passed": 128,
+      "rate": 1.0,
+      "requests": 128,
+      "run_passed": [
+        64,
+        64
+      ],
+      "run_wall_seconds": [
+        106.249,
+        105.769
+      ]
+    },
+    "max_running_requests_2": {
+      "passed": 127,
+      "rate": 0.9921875,
+      "requests": 128,
+      "run_passed": [
+        64,
+        63
+      ],
+      "run_wall_seconds": [
+        88.555,
+        86.763
+      ]
+    },
+    "r7_fresh_replication": {
+      "mean_wall_seconds": 68.495,
+      "passed": 115,
+      "rate": 0.8984375,
+      "requests": 128
+    },
+    "r7_original": {
+      "passed": 117,
+      "rate": 0.9140625,
+      "requests": 128
+    },
+    "related_upstream_issue": "https://github.com/sgl-project/sglang/issues/33397",
+    "target_only_no_speculation": {
+      "mean_wall_seconds": 110.064,
+      "passed": 116,
+      "rate": 0.90625,
+      "requests": 128
+    }
+  },
+  "goal": "Eliminate concurrency-dependent DeepSeek V4 tool-call corruption without reducing ordinary chat concurrency or changing the qualified model/kernel profile.",
+  "mixed_isolation_validation": {
+    "conclusion": "A waiting tool call did not overlap an ordinary generation.",
+    "observed_max_running_requests": 1,
+    "passed": 2,
+    "requests": [
+      "512-token ordinary chat",
+      "forced get_weather tool call"
+    ],
+    "wall_seconds": 12.134
+  },
+  "ordinary_chat_concurrency_validation": {
+    "completion_tokens_each": [
+      512,
+      512,
+      512,
+      512
+    ],
+    "conclusion": "Non-tool chat requests retain the qualified C4 shared lane.",
+    "max_tokens_each": 512,
+    "observed_max_running_requests": 4,
+    "requests": 4,
+    "sum_individual_latency_seconds": 79.178,
+    "wall_seconds": 21.383
+  },
+  "published_image_tool_stress": {
+    "failed": 0,
+    "finish_reasons": {
+      "tool_calls": 64
+    },
+    "median_latency_seconds": 13.243,
+    "p95_latency_seconds": 13.444,
+    "passed": 64,
+    "rate": 1.0,
+    "requests": 64,
+    "runs": 1,
+    "wall_seconds": 107.061
+  },
+  "release": {
+    "base_image_id": "sha256:e15a9e6743edd53584a6f041d9b32dbf9997d4453150e6beb6089b7056524508",
+    "latest_tag_changed": false,
+    "local_image_id": "sha256:aa38dc9e669fb23d81b9623f253b8761cb10cae217b0ee19e434d3e31c0205b1",
+    "manifest_digest": "sha256:ed8afcb66d235ff02ca603c0f5bace9b11a7d6fd9ba4e8d7c70ac8b458b58bba",
+    "published": true,
+    "recipe_revision": "1898c140f6b06c0077c8f358dd8bb7864a2cd5f4",
+    "tag": "ghcr.io/liquidgravityai/2x-dgx-spark-deepseek-v4-flash-0731:r8-sglang-d2c405f-toolgate-flashinfer-67f7637-cu132",
+    "tool_gate_patch_sha256": "6c3abff755b05c2d52554b79548df88bb0c54e7c652322d3cad31a99454710a8"
+  },
+  "retained_generation_performance": {
+    "delta_vs_r7_median_pct": -0.9380211532301508,
+    "e2e_output_tps": 58.19565509697541,
+    "finish_reason": "length",
+    "output_tokens": 8192,
+    "r7_three_sample_median_e2e_output_tps": 58.74671167935488,
+    "wall_seconds": 140.76652262697462,
+    "workload": "8,192-token Tetris prompt, temperature 0.95, top_p 0.4, non-streaming chat without tools"
+  },
+  "runtime": {
+    "attention_backend": "dsv4",
+    "context_length": 270000,
+    "exclusive_tool_generation_env": "1",
+    "fatal_log_matches": {
+      "head": [],
+      "worker": []
+    },
+    "head": {
+      "oom_killed": false,
+      "restarts": 0,
+      "status": "running"
+    },
+    "health_status": 200,
+    "kv_cache_dtype": "fp8_e4m3",
+    "max_running_requests": 4,
+    "max_total_tokens": 1113832,
+    "moe_runner_backend": "flashinfer_mxfp4",
+    "nodes": 2,
+    "smoke_content": "SGLANG_R8_OK",
+    "smoke_finish_reason": "stop",
+    "speculative_algorithm": "DSPARK",
+    "speculative_num_draft_tokens": 6,
+    "tp_size": 2,
+    "worker": {
+      "oom_killed": false,
+      "restarts": 0,
+      "status": "running"
+    }
+  },
+  "schema": "local-inference.sglang.ds4-0731-r8-tool-generation-qualification-v1",
+  "streaming_tool_validation": {
+    "cities": [
+      "Lisbon",
+      "Oslo",
+      "Seoul",
+      "Lima"
+    ],
+    "failed": 0,
+    "finish_reasons": {
+      "tool_calls": 4
+    },
+    "observed_max_running_requests": 1,
+    "passed": 4,
+    "requests": 4,
+    "wall_seconds": 6.889
+  },
+  "tool_stress_contract": {
+    "client_concurrency": 8,
+    "max_tokens": 192,
+    "modes_per_run": {
+      "auto_get_weather_fahrenheit": 16,
+      "forced_compute_total_strict": 16,
+      "forced_get_weather_celsius": 16,
+      "required_get_local_time": 16
+    },
+    "requests_per_run": 64,
+    "runner_sha256": "b71bf10869386edcf761564010c332f2f459d06f29dbd50d31b58a3e3a5887e0",
+    "temperature": 0,
+    "validation": "HTTP 200; one choice; finish_reason stop or tool_calls; exactly one nonempty-id call; expected function; JSON arguments; exact requested fields and values."
+  },
+  "validated_at": "2026-08-07T06:16:29Z"
+}

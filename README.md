@@ -12,13 +12,13 @@ revision on both nodes.
 ## Published image
 
 ```text
-ghcr.io/liquidgravityai/2x-dgx-spark-deepseek-v4-flash-0731:r7-sglang-d2c405f-flashinfer-67f7637-cu132
+ghcr.io/liquidgravityai/2x-dgx-spark-deepseek-v4-flash-0731:r8-sglang-d2c405f-toolgate-flashinfer-67f7637-cu132
 ```
 
 Published manifest digest:
 
 ```text
-ghcr.io/liquidgravityai/2x-dgx-spark-deepseek-v4-flash-0731@sha256:786fc402e4267bbc1c58f813865ff674ccbe790b99b22f0047af9dbd46f06f42
+ghcr.io/liquidgravityai/2x-dgx-spark-deepseek-v4-flash-0731@sha256:ed8afcb66d235ff02ca603c0f5bace9b11a7d6fd9ba4e8d7c70ac8b458b58bba
 ```
 
 Use the immutable tag for reproducible deployments. This SGLang branch does
@@ -35,21 +35,24 @@ not move the repository package's vLLM-oriented `latest` tag.
 | SGLang adaptive WO-A tree | `445a046ec440c761c8bfae7950bb18f379392f4b` |
 | SGLang bounded hybrid-SWA tree | `d46b115c1504b2896b3990c1a71c3d6c11e95e4e` |
 | Hybrid-SWA patch SHA-256 | `cc9f621236e38ca13c37e99355eac91d26369127294a020c224a9891734912ba` |
+| Exclusive tool-generation patch SHA-256 | `6c3abff755b05c2d52554b79548df88bb0c54e7c652322d3cad31a99454710a8` |
 | SGL-Kernel | `fdebc938f7f4d16fe6b9f55dcd9a767cf0899ea1` |
 | FlashInfer | `67f76379a145f19793896394974e29e610cda912` |
 | FlashInfer final tree | `d8567dec0ff48f11c0ab1d17a05e944d50e48f7a` |
 | Model revision | `9e165c30e2704aec5d9d593cce3eebd58bbef1cb` |
 | Topology | 2 nodes, 1 GB10 per node, tensor parallel size 2 |
 
-The full machine-readable source, image, configuration, and measurement
-receipt is [`validation/sglang-r7-gb10.json`](validation/sglang-r7-gb10.json).
+The full r8 correctness, concurrency, performance, source, and image receipt is
+[`validation/sglang-r8-tool-generation-qualification.json`](validation/sglang-r8-tool-generation-qualification.json).
+The underlying r7 runtime provenance remains recorded in
+[`validation/sglang-r7-gb10.json`](validation/sglang-r7-gb10.json).
 
-## r7 scope and validation
+## r8 scope and validation
 
 This branch is the SGLang counterpart to the vLLM recipe on `main`. It retains
 the same model revision, two-node RoCE topology, 270,000-token request limit,
-four-request concurrency target, FP8 E4M3 KV cache, and DSpark speculative
-decoding while using SGLang-specific kernels and scheduling.
+four-request ordinary-chat concurrency, FP8 E4M3 KV cache, and DSpark
+speculative decoding while using SGLang-specific kernels and scheduling.
 
 The image uses DSpark block size 5, which gives the checkpoint's fixed
 six-token verify window. Compact verification reads the measured
@@ -67,24 +70,35 @@ The qualified profile exposes `1,113,832` maximum total tokens and SGLang
 reported `1,113,600` available KV tokens across both ranks. This is aggregate
 concurrent capacity, not a one-million-token per-request context window.
 
+r8 adds a writer-preferring generation gate around OpenAI chat requests. A
+tool-bearing request runs exclusively against all other chat generation;
+ordinary requests continue to share the four-request lane. This avoids the
+reproduced DSV4 batch-corruption path without reducing long-context capacity or
+ordinary concurrent throughput. Set `EXCLUSIVE_TOOL_GENERATION=0` only to
+reproduce or diagnose the upstream defect.
+
 ### Measured comparison with the retained vLLM profile
 
-| Workload | vLLM | SGLang r7 | SGLang delta |
+| Workload | vLLM | SGLang r7 | SGLang r8 |
 |---|---:|---:|---:|
-| Physical DSpark round | 67.69 ms | 67.52 ms | 0.2% faster |
-| C4 sustained decode, concurrency 4 | 81.46 tok/s | 86.99 tok/s | 6.8% faster |
-| 127,900-token exact retrieval | 1,941 prompt tok/s | 2,085 prompt tok/s | 7.4% faster |
-| 8,192-token C1 Tetris generation | 62.44 tok/s | 61.10 tok/s | 2.1% slower |
+| Physical DSpark round | 67.69 ms | 67.52 ms | unchanged |
+| C4 sustained decode, concurrency 4 | 81.46 tok/s | 86.99 tok/s | unchanged |
+| 127,900-token exact retrieval | 1,941 prompt tok/s | 2,085 prompt tok/s | unchanged |
+| Fresh 8,192-token C1 Tetris generation | 64.90 tok/s | 58.75 tok/s median | 58.20 tok/s |
+| Exact concurrency-eight tool-call validity | 64/64 | 117/128 | **192/192** |
 
-The fixed r7 image passed the canonical `SPARKINFER_OK` smoke request and a
-targeted 13,000-token generation with an intentionally reduced 11,008-token
-SWA pool, zero request retractions, and no container restart or OOM kill. The
-unchanged r6 kernel and serving profile had already passed two repeated
-127,900-token exact-retrieval requests and the measured concurrency workloads.
-The SGLang profile has **not** completed the vLLM recipe's identical four-way
-269,989-token ceiling test or equivalent structured-output/tool-call
-qualification. It is a strong long-context and concurrent-serving alternative,
-not a universal per-workload parity claim.
+The gated candidate passed two complete 64-request tool-call stress runs; the
+published image passed a third. All 192 calls used the expected function,
+decoded as JSON, matched every requested argument exactly, and ended with the
+correct protocol finish reason. Four concurrent streaming tool calls also
+passed while the engine metric remained at one running request.
+
+The gate does not globally serialize the service. Four simultaneous ordinary
+512-token chat generations reached `sglang:num_running_reqs=4` and completed
+in 21.383 seconds versus 79.178 seconds of summed request latency. The
+8,192-token Tetris workload measured 58.20 output tok/s, 0.94% below the r7
+three-sample median. Concurrent tool-bearing chat requests intentionally queue;
+this is the correctness cost until the upstream DSV4 batching defect is fixed.
 
 ## Requirements
 
@@ -254,7 +268,8 @@ re-run representative quality, concurrency, long-context, and stability tests.
 |---|---:|---|
 | `MAX_MODEL_LEN` | `270000` | Maximum context per request |
 | `MAX_TOTAL_TOKENS` | `1113832` | Aggregate token budget across both ranks |
-| `MAX_NUM_SEQS` | `4` | Maximum running requests |
+| `MAX_NUM_SEQS` | `4` | Maximum running ordinary chat requests |
+| `EXCLUSIVE_TOOL_GENERATION` | `1` | Run tool-bearing chat requests exclusively; required for r8 correctness |
 | `CHUNKED_PREFILL_SIZE` | `8192` | Chunked-prefill size |
 | `MAX_PREFILL_TOKENS` | `16384` | Maximum prefill batch |
 | `MEM_FRACTION_STATIC` | `0.82` | Static memory fraction |
@@ -305,13 +320,13 @@ untrusted users.
 ## Rebuilding the release layer
 
 Deployment users should pull the published GHCR image. The included
-`Dockerfile` is the same small, auditable release layer pattern used by the
-vLLM branch: it embeds the qualified SPS table, entrypoint, and OCI provenance
-on top of the validated local SGLang base.
+`Dockerfile` embeds the qualified SPS table, entrypoint, exclusive
+tool-generation source patch, and OCI provenance on top of the validated local
+SGLang base.
 
 ```bash
 BASE_IMAGE=spark-sglang:ds4-0731-d2c405f-sm121-cu132-swa-r7
-IMAGE=ghcr.io/liquidgravityai/2x-dgx-spark-deepseek-v4-flash-0731:r7-sglang-d2c405f-flashinfer-67f7637-cu132
+IMAGE=ghcr.io/liquidgravityai/2x-dgx-spark-deepseek-v4-flash-0731:r8-sglang-d2c405f-toolgate-flashinfer-67f7637-cu132
 
 docker build \
   --build-arg BASE_IMAGE="$BASE_IMAGE" \
@@ -321,8 +336,10 @@ docker build \
   .
 ```
 
-The qualified base image ID and every final source tree and patch digest are
-recorded in `validation/sglang-r7-gb10.json` and as labels on the base image.
+The qualified base image ID, final source trees, patch digests, published r8
+manifest digest, and qualification measurements are recorded in
+`validation/sglang-r8-tool-generation-qualification.json` and the underlying
+`validation/sglang-r7-gb10.json` provenance receipt.
 
 ## Provenance
 

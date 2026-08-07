@@ -3,6 +3,52 @@
 All notable changes to the published two-node DGX Spark SGLang recipe and image
 are recorded here.
 
+## 2026-08-07 - SGLang r8 exclusive tool-generation release
+
+### Correctness
+
+- Reproduced the concurrency-dependent DSV4 tool-call defect with the exact
+  64-request, concurrency-eight workload. r7 returned 117/128 valid calls;
+  removing DSpark returned 116/128; forcing every advertised JSON schema
+  returned 118/128; and Marlin previously returned 116/128. None fixed the
+  generated-value corruption.
+- Reduced only `max_running_requests`: concurrency two returned 127/128 while
+  concurrency one returned 128/128 across two complete runs. This isolated
+  overlapping DSV4 generation as the failure condition and agrees with upstream
+  issue [#33397](https://github.com/sgl-project/sglang/issues/33397).
+- Added a writer-preferring OpenAI chat generation gate. Tool-bearing requests
+  now run exclusively against every other chat request; ordinary chat requests
+  remain concurrent up to `MAX_NUM_SEQS=4`.
+
+### Qualification
+
+- The gated candidate passed two exact tool-stress runs and the published image
+  passed a third: **192/192 valid calls**, including exact strict typed
+  arguments, required calls, named calls, automatic calls, and correct protocol
+  finish reasons.
+- Four concurrent streaming tool calls passed while
+  `sglang:num_running_reqs` remained at one. A mixed 512-token ordinary request
+  and tool request also remained at one, proving the exclusive path spans the
+  complete generation lifetime.
+- Four ordinary 512-token requests reached four running requests and completed
+  in 21.383 seconds versus 79.178 seconds of summed latency. The 8,192-token
+  Tetris workload measured 58.20 output tok/s, 0.94% below the r7 median.
+- Both final containers remained running with zero restarts and zero OOM kills;
+  health returned HTTP 200, the smoke response was exactly `SGLANG_R8_OK`, and
+  neither log contained a fatal signature.
+
+### Published image
+
+- Published immutable ARM64 tag
+  `ghcr.io/liquidgravityai/2x-dgx-spark-deepseek-v4-flash-0731:r8-sglang-d2c405f-toolgate-flashinfer-67f7637-cu132`.
+- Published manifest digest
+  `sha256:ed8afcb66d235ff02ca603c0f5bace9b11a7d6fd9ba4e8d7c70ac8b458b58bba`.
+- Added patch SHA-256
+  `6c3abff755b05c2d52554b79548df88bb0c54e7c652322d3cad31a99454710a8`
+  and machine-readable
+  `validation/sglang-r8-tool-generation-qualification.json`.
+- Retained the package's vLLM-oriented `latest` tag unchanged.
+
 ## 2026-08-07 - Tool-call backend qualification
 
 ### Correctness

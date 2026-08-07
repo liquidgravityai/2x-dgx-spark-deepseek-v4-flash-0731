@@ -1,0 +1,138 @@
+--- a/python/sglang/srt/entrypoints/openai/serving_chat.py
++++ b/python/sglang/srt/entrypoints/openai/serving_chat.py
+@@ -1,9 +1,11 @@
+ from __future__ import annotations
+ 
++import asyncio
+ import copy
+ import json
+ import logging
+ import math
++import os
+ import time
+ import uuid
+ from enum import Enum
+@@ -190,6 +192,50 @@
+     return value
+ 
+ 
++class _ToolExclusiveGenerationGate:
++    """Allow ordinary chat generations to overlap while tool calls run alone."""
++
++    def __init__(self) -> None:
++        self._condition = asyncio.Condition()
++        self._shared = 0
++        self._exclusive = False
++        self._exclusive_waiters = 0
++
++    async def _acquire(self, exclusive: bool) -> None:
++        async with self._condition:
++            if exclusive:
++                self._exclusive_waiters += 1
++                try:
++                    await self._condition.wait_for(
++                        lambda: not self._exclusive and self._shared == 0
++                    )
++                    self._exclusive = True
++                finally:
++                    self._exclusive_waiters -= 1
++                    self._condition.notify_all()
++            else:
++                await self._condition.wait_for(
++                    lambda: not self._exclusive and self._exclusive_waiters == 0
++                )
++                self._shared += 1
++
++    async def _release(self, exclusive: bool) -> None:
++        async with self._condition:
++            if exclusive:
++                self._exclusive = False
++            else:
++                self._shared -= 1
++            self._condition.notify_all()
++
++    async def run(self, generator, exclusive: bool):
++        await self._acquire(exclusive)
++        try:
++            async for item in generator:
++                yield item
++        finally:
++            await self._release(exclusive)
++
++
+ class OpenAIServingChat(OpenAIServingBase):
+     """Handler for /v1/chat/completions requests"""
+ 
+@@ -203,6 +249,11 @@
+     ):
+         super().__init__(tokenizer_manager)
+         self.template_manager = template_manager
++        self._tool_generation_gate = (
++            _ToolExclusiveGenerationGate()
++            if int(os.getenv("SGLANG_EXCLUSIVE_TOOL_GENERATION", "0"))
++            else None
++        )
+         self.tool_call_parser = self.tokenizer_manager.server_args.tool_call_parser
+         self.reasoning_parser = self.tokenizer_manager.server_args.reasoning_parser
+         self.default_chat_template_kwargs = (
+@@ -1448,6 +1499,31 @@
+             stop=stop,
+         )
+ 
++    def _tool_generation_is_exclusive(
++        self, request: ChatCompletionRequest
++    ) -> bool:
++        return (
++            request.tool_choice != "none"
++            and bool(self._effective_tools(request))
++        )
++
++    def _generate_request_with_tool_gate(
++        self,
++        adapted_request: GenerateReqInput,
++        request: ChatCompletionRequest,
++        raw_request: Request,
++    ):
++        generator = self.tokenizer_manager.generate_request(
++            adapted_request, raw_request
++        )
++        if self._tool_generation_gate is None:
++            return generator
++        return self._tool_generation_gate.run(
++            generator,
++            exclusive=self._tool_generation_is_exclusive(request),
++        )
++
++
+     async def _handle_streaming_request(
+         self,
+         adapted_request: GenerateReqInput,
+@@ -1513,8 +1589,8 @@
+                 self.tokenizer_manager.server_args.stream_response_default_include_usage,
+             )
+ 
+-            async for content in self.tokenizer_manager.generate_request(
+-                adapted_request, raw_request
++            async for content in self._generate_request_with_tool_gate(
++                adapted_request, request, raw_request
+             ):
+                 index = content.get("index", 0)
+ 
+@@ -1722,10 +1798,14 @@
+         raw_request: Request,
+     ) -> Union[ChatCompletionResponse, ErrorResponse, ORJSONResponse]:
+         """Handle non-streaming chat completion request"""
++        generation = self._generate_request_with_tool_gate(
++            adapted_request, request, raw_request
++        )
+         try:
+-            ret = await self.tokenizer_manager.generate_request(
+-                adapted_request, raw_request
+-            ).__anext__()
++            try:
++                ret = await generation.__anext__()
++            finally:
++                await generation.aclose()
+         except ValueError as e:
+             return self.create_error_response(str(e))
+ 

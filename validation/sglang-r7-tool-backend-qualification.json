@@ -289,7 +289,15 @@
       "health": 200,
       "smoke": "SPARKINFER_OK",
       "head_state": "running",
-      "worker_state": "running"
+      "worker_state": "running",
+      "head_restarts": 0,
+      "worker_restarts": 0,
+      "head_oom_killed": false,
+      "worker_oom_killed": false,
+      "fatal_log_matches": {
+        "head": [],
+        "worker": []
+      }
     }
   }
 }
